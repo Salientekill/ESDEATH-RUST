@@ -1,0 +1,17 @@
+# Binario (vem do GitHub Release)
+esdeath/esdeath-bot
+
+# Dados do cliente (nunca sobrescrever)
+dados/chave.dat
+dados/chave.txt
+dados/bot_config.json
+dados/DB/
+dados/org/json/credenciais.json
+dados/org/json/cmdperfil.json
+dados/bot_session.db*
+
+# Runtime
+.bot.pid
+logs/*.log
+.backups/
+.version

@@ -1,0 +1,14 @@
+{
+  "name": "ESDEATH BOT",
+  "owner": "",
+  "creator": "Dev",
+  "prefix": "!",
+  "api_welcome": "",
+  "fundo_bv_padrao": "",
+  "fundo_saiu_padrao": "",
+  "emoji": "❄️",
+  "console_log": true,
+  "antipv_mode": 0,
+  "antipv_msg1": "Olá, esse bot não aceita mensagens no privado. Você será bloqueado.",
+  "antipv_msg2": "Bot em modo privado. Mensagens no privado não são permitidas."
+}
