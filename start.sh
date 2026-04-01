@@ -12,6 +12,7 @@ case "${1:-}" in
         ;;
     debug)
         export WBOT_DEBUG=1
+        export RUST_LOG=debug
         ;;
     reset)
         rm -f "$DB" "$DB-shm" "$DB-wal"
