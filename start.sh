@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BOT_BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
-DB="$SCRIPT_DIR/dados/bot_session.db"
+DB="$SCRIPT_DIR/dados/DB/ESDEATH_AUTH.db"
 
 case "${1:-}" in
     update|atualizar)
