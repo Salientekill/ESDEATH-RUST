@@ -9,9 +9,66 @@ echo "  ESDEATH BOT — Setup Inicial"
 echo "========================================"
 echo ""
 
+# ── 0. Verifica dependências do sistema ────────────────────────────────────
+echo "[0/5] Verificando dependências do sistema..."
+MISSING_REQUIRED=()
+MISSING_OPTIONAL=()
+
+# Obrigatórias
+for cmd in git curl; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        MISSING_REQUIRED+=("$cmd")
+    fi
+done
+
+# Recomendadas (mídia / stickers / conversor / downloader)
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    MISSING_OPTIONAL+=("ffmpeg (stickers, conversor, downloader)")
+fi
+
+# Opcional (config mais robusta; tem fallback sed)
+if ! command -v python3 >/dev/null 2>&1; then
+    MISSING_OPTIONAL+=("python3 (config JSON — fallback sed disponível)")
+fi
+
+# Arquitetura (binário é x86_64 MUSL estático)
+ARCH=$(uname -m)
+if [ "$ARCH" != "x86_64" ]; then
+    echo "      ⚠️  Arquitetura detectada: $ARCH"
+    echo "         O binário é compilado para x86_64 — pode não executar."
+fi
+
+if [ ${#MISSING_REQUIRED[@]} -gt 0 ]; then
+    echo "      ❌ Dependências OBRIGATÓRIAS faltando:"
+    for dep in "${MISSING_REQUIRED[@]}"; do
+        echo "           - $dep"
+    done
+    echo ""
+    echo "      Instale com:"
+    echo "         sudo apt update && sudo apt install -y ${MISSING_REQUIRED[*]}"
+    exit 1
+fi
+
+if [ ${#MISSING_OPTIONAL[@]} -gt 0 ]; then
+    echo "      ⚠️  Dependências recomendadas faltando:"
+    for dep in "${MISSING_OPTIONAL[@]}"; do
+        echo "           - $dep"
+    done
+    echo ""
+    echo "      Instalar (recomendado):"
+    echo "         sudo apt update && sudo apt install -y ffmpeg python3"
+    echo ""
+    read -p "      Continuar mesmo assim? [s/N]: " CONTINUE
+    if [ "${CONTINUE,,}" != "s" ]; then
+        exit 1
+    fi
+fi
+echo "      OK."
+echo ""
+
 # ── 1. Baixa arquivos do repo público se faltarem ──────────────────────────
 if [ ! -f "$SCRIPT_DIR/esdeath/esdeath-bot" ]; then
-    echo "[1/4] Baixando arquivos do repo público..."
+    echo "[1/5] Baixando arquivos do repo público..."
     TMPDIR=$(mktemp -d)
     trap "rm -rf $TMPDIR" EXIT
     git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet
@@ -27,12 +84,12 @@ if [ ! -f "$SCRIPT_DIR/esdeath/esdeath-bot" ]; then
     echo "      Arquivos baixados."
     echo ""
 else
-    echo "[1/4] Arquivos já presentes (pulando download)."
+    echo "[1/5] Arquivos já presentes (pulando download)."
     echo ""
 fi
 
 # ── 2. Cria estrutura de diretórios ─────────────────────────────────────────
-echo "[2/4] Criando estrutura de diretórios..."
+echo "[2/5] Criando estrutura de diretórios..."
 mkdir -p "$SCRIPT_DIR/dados/DB"
 mkdir -p "$SCRIPT_DIR/dados/org/json"
 mkdir -p "$SCRIPT_DIR/logs"
@@ -42,7 +99,7 @@ echo ""
 CONFIG="$SCRIPT_DIR/dados/bot_config.json"
 TEMPLATE="$SCRIPT_DIR/esdeath/bot_config.json.template"
 
-echo "[3/4] Configurando bot_config.json..."
+echo "[3/5] Configurando bot_config.json..."
 if [ -f "$CONFIG" ]; then
     echo "      Config já existe em dados/bot_config.json (pulando)."
     echo ""
@@ -99,7 +156,7 @@ with open('$CONFIG', 'w') as f:
 fi
 
 # ── 4. Verificar chave ──────────────────────────────────────────────────────
-echo "[4/4] Verificando chave de acesso..."
+echo "[4/5] Verificando chave de acesso..."
 if [ -f "$SCRIPT_DIR/dados/chave.dat" ] || [ -f "$SCRIPT_DIR/dados/chave.txt" ]; then
     echo "      Chave encontrada."
     KEY_OK=1
