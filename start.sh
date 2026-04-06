@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-set -m  # job control: bot roda em pgrp próprio (Ctrl+C/Z vão só pro supervisor)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MUSL_TARGET="x86_64-unknown-linux-musl"
@@ -130,10 +129,10 @@ echo -e "\e[95m═════════════════════�
 
 while [ "$SHOULD_EXIT" = "0" ]; do
     echo -e "\e[32m🚀 ESDEATH BOT ESTÁ INICIANDO AGUARDE...\e[0m"
-    "$BOT_BIN" &
+    "$BOT_BIN" </dev/tty &
     BOT_PID=$!
-    wait "$BOT_PID" 2>/dev/null || true
-    EXIT_CODE=$?
+    EXIT_CODE=0
+    wait "$BOT_PID" 2>/dev/null || EXIT_CODE=$?
 
     if [ "$SHOULD_EXIT" = "1" ]; then
         break
