@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
 BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
+PUBLIC_REPO="https://github.com/Salientekill/ESDEATH-RUST.git"
 MODE="${1:-update}"
 
 CURRENT=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "nenhuma")
@@ -30,28 +31,27 @@ if [ "$MODE" = "rollback" ]; then
     echo "Versão atual: $CURRENT"
     echo ""
 
-    # Busca tags remotas para garantir lista atualizada
-    git -C "$SCRIPT_DIR" fetch --tags --quiet 2>/dev/null || true
-
-    # Lista versões disponíveis (tags)
-    echo "Versões disponíveis:"
-    TAGS=$(git -C "$SCRIPT_DIR" tag -l 'v*' | sort -V -r)
-    if [ -z "$TAGS" ]; then
-        echo "  Nenhuma versão disponível para rollback."
+    BACKUP_DIR="$SCRIPT_DIR/.backups"
+    if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A "$BACKUP_DIR" 2>/dev/null)" ]; then
+        echo "Nenhum backup encontrado."
         exit 1
     fi
-    echo "$TAGS" | head -10 | sed 's/^/  - /'
+
+    echo "Backups disponíveis:"
+    ls -t "$BACKUP_DIR"/esdeath-bot.* 2>/dev/null | while read -r f; do
+        echo "  - $(basename "$f" | sed 's/esdeath-bot\.//')"
+    done
     echo ""
 
-    read -p "Qual versão restaurar? (ex: v1.17): " TARGET
+    read -p "Qual versão restaurar? (ex: v1.25): " TARGET
     if [ -z "$TARGET" ]; then
         echo "Cancelado."
         exit 0
     fi
 
-    # Valida se a tag existe
-    if ! git -C "$SCRIPT_DIR" rev-parse "$TARGET" >/dev/null 2>&1; then
-        echo "Versão '$TARGET' não encontrada."
+    BACKUP="$BACKUP_DIR/esdeath-bot.${TARGET}"
+    if [ ! -f "$BACKUP" ]; then
+        echo "Backup '$TARGET' não encontrado."
         exit 1
     fi
 
@@ -64,18 +64,12 @@ if [ "$MODE" = "rollback" ]; then
 
     stop_bot
 
-    # Backup do binário atual antes de sobrescrever
-    if [ -f "$BIN" ]; then
-        mkdir -p "$SCRIPT_DIR/.backups"
-        cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}"
-    fi
+    cp "$BACKUP" "$BIN"
+    chmod +x "$BIN"
+    echo "$TARGET" > "$SCRIPT_DIR/.version"
 
-    echo "Restaurando $TARGET..."
-    git -C "$SCRIPT_DIR" checkout "$TARGET" -- . 2>&1 | grep -v "^$" || true
-
-    NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "$TARGET")
     echo ""
-    echo "Rollback para $NEW concluído!"
+    echo "Rollback para $TARGET concluído!"
     echo "Execute: bash start.sh"
     exit 0
 fi
@@ -96,12 +90,30 @@ if [ -f "$BIN" ]; then
     ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
 fi
 
-# Garante que estamos em main (pode ter vindo de um rollback)
-git -C "$SCRIPT_DIR" checkout main --quiet 2>/dev/null || true
-
-# Atualizar tudo (binário + scripts) via git pull
+# Baixa versão mais recente do repo público
 echo "Baixando atualizacao..."
-git -C "$SCRIPT_DIR" pull --ff-only origin main
+TMPDIR=$(mktemp -d)
+trap "rm -rf $TMPDIR" EXIT
+
+git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet
+
+# Copia binário
+cp "$TMPDIR/pub/esdeath/esdeath-bot" "$BIN"
+chmod +x "$BIN"
+
+# Copia scripts atualizados
+cp "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh"
+chmod +x "$SCRIPT_DIR/start.sh"
+cp "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh"
+chmod +x "$SCRIPT_DIR/atualizar.sh"
+cp "$TMPDIR/pub/setup.sh" "$SCRIPT_DIR/setup.sh"
+chmod +x "$SCRIPT_DIR/setup.sh"
+
+# Copia template (não sobrescreve config do usuário)
+cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template"
+
+# Atualiza versão
+cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 
 NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
 echo ""
