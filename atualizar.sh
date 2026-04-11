@@ -9,7 +9,7 @@ MODE="${1:-update}"
 
 CURRENT=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "nenhuma")
 
-# Função: para o bot se estiver rodando
+# Função: para o bot se estiver rodando (mata supervisor start.sh também)
 stop_bot() {
     if [ -f "$PID_FILE" ]; then
         OLD_PID=$(cat "$PID_FILE")
@@ -22,6 +22,72 @@ stop_bot() {
         rm -f "$PID_FILE"
     fi
 }
+
+# Função: mata só os processos do binário do bot, preservando o supervisor.
+# Usado no modo 'auto' (chamado de dentro do próprio bot) para que o
+# start.sh detecte a saída e relance automaticamente com a nova versão.
+stop_bot_bin_only() {
+    for BIN_PATTERN in "$BIN" "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot"; do
+        if pgrep -f "$BIN_PATTERN" >/dev/null 2>&1; then
+            echo "Matando binário do bot ($BIN_PATTERN)..."
+            pkill -TERM -f "$BIN_PATTERN" 2>/dev/null || true
+        fi
+    done
+}
+
+# ═══════════════════════════════════════════════════════════
+# Modo AUTO — invocado pelo próprio bot (comando !atualizarbot).
+# Não toca no PID do supervisor: baixa nova versão, troca o
+# binário, mata só o processo atual do bot. O start.sh detecta
+# o exit e relança automaticamente com a nova versão.
+# ═══════════════════════════════════════════════════════════
+if [ "$MODE" = "auto" ]; then
+    echo "=== ESDEATH BOT — Atualizacao automatica ==="
+    echo "Versao atual: $CURRENT"
+
+    # Backup do binário atual
+    if [ -f "$BIN" ]; then
+        mkdir -p "$SCRIPT_DIR/.backups"
+        cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}"
+        ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
+    fi
+
+    TMPDIR=$(mktemp -d)
+    trap "rm -rf $TMPDIR" EXIT
+
+    echo "Baixando atualizacao..."
+    if ! git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet; then
+        echo "ERRO: falha ao clonar repositorio."
+        exit 1
+    fi
+
+    if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
+        echo "ERRO: binario nao encontrado no repositorio."
+        exit 1
+    fi
+
+    # Copia binário (Linux permite sobrescrever binário em execução)
+    cp "$TMPDIR/pub/esdeath/esdeath-bot" "$BIN"
+    chmod +x "$BIN"
+
+    # Copia scripts atualizados
+    [ -f "$TMPDIR/pub/start.sh" ]     && cp "$TMPDIR/pub/start.sh"     "$SCRIPT_DIR/start.sh"     && chmod +x "$SCRIPT_DIR/start.sh"
+    [ -f "$TMPDIR/pub/atualizar.sh" ] && cp "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" && chmod +x "$SCRIPT_DIR/atualizar.sh"
+    [ -f "$TMPDIR/pub/setup.sh" ]     && cp "$TMPDIR/pub/setup.sh"     "$SCRIPT_DIR/setup.sh"     && chmod +x "$SCRIPT_DIR/setup.sh"
+
+    [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
+        cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
+
+    [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
+
+    NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
+    echo "Atualizado: $CURRENT -> $NEW"
+
+    # Mata só o binário do bot (supervisor continua vivo e relança).
+    # Delay pra dar tempo da mensagem ser enviada antes do kill.
+    (sleep 2 && stop_bot_bin_only) &
+    exit 0
+fi
 
 # ═══════════════════════════════════════════════════════════
 # Modo ROLLBACK
