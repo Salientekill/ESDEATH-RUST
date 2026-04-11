@@ -89,17 +89,24 @@ if [ -z "$BOT_BIN" ]; then
 fi
 
 # Mata TODAS as instancias anteriores deste bot
-# 1) Via PID file
+# 1) Via PID file — valida que é realmente um processo do bot antes de matar.
+#    Em containers (Pterodactyl) PIDs resetam e podem colidir com o proprio
+#    supervisor/bash pai, causando suicidio do start.sh.
 if [ -f "$PID_FILE" ]; then
-    OLD_PID=$(cat "$PID_FILE")
-    if kill -0 "$OLD_PID" 2>/dev/null; then
-        echo "Fechando instancia anterior (PID $OLD_PID)..."
-        kill "$OLD_PID" 2>/dev/null || true
-        for i in $(seq 1 10); do
-            kill -0 "$OLD_PID" 2>/dev/null || break
-            sleep 0.5
-        done
-        kill -9 "$OLD_PID" 2>/dev/null || true
+    OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
+    if [ -n "$OLD_PID" ] && [ "$OLD_PID" != "$$" ] && [ "$OLD_PID" != "$PPID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        OLD_CMD=$(cat "/proc/$OLD_PID/cmdline" 2>/dev/null | tr '\0' ' ')
+        if echo "$OLD_CMD" | grep -qE "esdeath-bot|start\.sh"; then
+            echo "Fechando instancia anterior (PID $OLD_PID)..."
+            kill "$OLD_PID" 2>/dev/null || true
+            for i in $(seq 1 10); do
+                kill -0 "$OLD_PID" 2>/dev/null || break
+                sleep 0.5
+            done
+            kill -9 "$OLD_PID" 2>/dev/null || true
+        else
+            echo "PID file stale (PID $OLD_PID nao e do bot, ignorando)."
+        fi
     fi
     rm -f "$PID_FILE"
 fi
