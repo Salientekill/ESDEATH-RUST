@@ -6,12 +6,17 @@ MUSL_TARGET="x86_64-unknown-linux-musl"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
 DB="${BOT_DB_PATH:-"$SCRIPT_DIR/dados/DB/ESDEATH_AUTH.db"}"
 
-# ── Detecta binário: compilado (dev) ou pré-built (cliente) ────────────────
+# ── Detecta binário: comp2 (debug nativo) > comp (musl release) > pub ──────
 DEV_BIN="$SCRIPT_DIR/target/$MUSL_TARGET/release/esdeath-bot"
+DBG_BIN="$SCRIPT_DIR/target/debug/esdeath-bot"
 PUB_BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
 
-if [ -f "$DEV_BIN" ]; then
+if [ -f "$DBG_BIN" ] && [ "$DBG_BIN" -nt "$DEV_BIN" ] 2>/dev/null; then
+    BOT_BIN="$DBG_BIN"
+elif [ -f "$DEV_BIN" ]; then
     BOT_BIN="$DEV_BIN"
+elif [ -f "$DBG_BIN" ]; then
+    BOT_BIN="$DBG_BIN"
 elif [ -f "$PUB_BIN" ]; then
     BOT_BIN="$PUB_BIN"
 else
@@ -21,6 +26,11 @@ fi
 case "${1:-}" in
     comp)
         cargo build --release --target "$MUSL_TARGET" --manifest-path "$SCRIPT_DIR/Cargo.toml"
+        exit 0
+        ;;
+    comp2)
+        # Build nativo debug — muito mais rápido para testar alterações
+        cargo build --manifest-path "$SCRIPT_DIR/Cargo.toml"
         exit 0
         ;;
     recomp)
@@ -73,7 +83,7 @@ case "${1:-}" in
         ;;
     *)
         echo "Comando desconhecido: $1"
-        echo "Uso: bash start.sh [comp|recomp|update|rollback|debug|debug2|reset]"
+        echo "Uso: bash start.sh [comp|comp2|recomp|update|rollback|debug|debug2|reset]"
         exit 1
         ;;
 esac
@@ -140,16 +150,15 @@ stop_bot() {
 }
 
 on_sigint() {
-    local now
-    now=$(date +%s)
-    if [ "$LAST_INT" -gt 0 ] && [ $((now - LAST_INT)) -le 2 ]; then
+    _INT_NOW=$(date +%s)
+    if [ "$LAST_INT" -gt 0 ] && [ $((_INT_NOW - LAST_INT)) -le 2 ]; then
         echo ""
         echo -e "\e[92m✅ Encerramento completo (Ctrl+C duplo). Parando o script.\e[0m"
         SHOULD_EXIT=1
         stop_bot
         return
     fi
-    LAST_INT=$now
+    LAST_INT=$_INT_NOW
     TRAP_RESTART=1
     echo ""
     echo -e "\e[93m♻️  Reiniciando bot... (Ctrl+C de novo em <=2s para encerrar)\e[0m"
