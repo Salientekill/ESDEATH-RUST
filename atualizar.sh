@@ -66,9 +66,12 @@ if [ "$MODE" = "auto" ]; then
         exit 1
     fi
 
-    # Copia binário (Linux permite sobrescrever binário em execução)
-    cp "$TMPDIR/pub/esdeath/esdeath-bot" "$BIN"
-    chmod +x "$BIN"
+    # Copia via rename atômico para evitar ETXTBSY em containers
+    # (cp direto sobre binário em execução falha em alguns ambientes)
+    TMP_BIN="${BIN}.new.$$"
+    cp "$TMPDIR/pub/esdeath/esdeath-bot" "$TMP_BIN"
+    chmod +x "$TMP_BIN"
+    mv "$TMP_BIN" "$BIN"
 
     # Copia scripts atualizados
     [ -f "$TMPDIR/pub/start.sh" ]     && cp "$TMPDIR/pub/start.sh"     "$SCRIPT_DIR/start.sh"     && chmod +x "$SCRIPT_DIR/start.sh"
@@ -163,9 +166,11 @@ trap "rm -rf $TMPDIR" EXIT
 
 git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet
 
-# Copia binário
-cp "$TMPDIR/pub/esdeath/esdeath-bot" "$BIN"
-chmod +x "$BIN"
+# Copia via rename atômico para evitar ETXTBSY em containers
+TMP_BIN="${BIN}.new.$$"
+cp "$TMPDIR/pub/esdeath/esdeath-bot" "$TMP_BIN"
+chmod +x "$TMP_BIN"
+mv "$TMP_BIN" "$BIN"
 
 # Copia scripts atualizados
 cp "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh"
