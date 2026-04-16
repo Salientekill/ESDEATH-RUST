@@ -131,6 +131,10 @@ for BIN_PATTERN in "$DEV_BIN" "$PUB_BIN"; do
     fi
 done
 
+# Garante que ^C/^Z estão mapeados pros sinais corretos
+# (alguns terminais/containers desbindam intr, deixando Ctrl+C sem efeito)
+stty intr ^C susp ^Z 2>/dev/null || true
+
 # Supervisor: reinicia em Ctrl+C, encerra em 2x Ctrl+C (<2s) ou Ctrl+Z
 BOT_PID=""
 LAST_INT=0
