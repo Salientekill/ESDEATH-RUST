@@ -145,50 +145,65 @@ fi
 
 # ═══════════════════════════════════════════════════════════
 # Modo UPDATE (padrão)
+#
+# NÃO mata o supervisor (start.sh) — em containers (Pterodactyl)
+# o PID_FILE contém o PID do start.sh, e matá-lo derruba o
+# servidor inteiro antes do download terminar. Estratégia:
+# 1) baixa tudo no tmp; 2) só então troca binário e mata o
+# binário em execução; 3) supervisor (se houver) relança
+# automaticamente com a versão nova.
 # ═══════════════════════════════════════════════════════════
 echo "=== ESDEATH BOT — Atualizador ==="
 echo "Versão atual: $CURRENT"
-
-stop_bot
 
 # Backup do binário atual
 if [ -f "$BIN" ]; then
     mkdir -p "$SCRIPT_DIR/.backups"
     cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}"
-    # Manter apenas últimos 3 backups
     ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
 fi
 
-# Baixa versão mais recente do repo público
 echo "Baixando atualizacao..."
 TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
-git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet
+if ! git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet; then
+    echo "ERRO: falha ao clonar repositorio (git instalado e rede ok?)."
+    exit 1
+fi
 
-# Copia via rename atômico para evitar ETXTBSY em containers
+if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
+    echo "ERRO: binario nao encontrado no repositorio."
+    exit 1
+fi
+
+# Rename atômico: evita ETXTBSY com binário em uso
 TMP_BIN="${BIN}.new.$$"
 cp "$TMPDIR/pub/esdeath/esdeath-bot" "$TMP_BIN"
 chmod +x "$TMP_BIN"
 mv "$TMP_BIN" "$BIN"
 
-# Copia scripts atualizados
-cp "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh"
-chmod +x "$SCRIPT_DIR/start.sh"
-cp "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh"
-chmod +x "$SCRIPT_DIR/atualizar.sh"
-cp "$TMPDIR/pub/setup.sh" "$SCRIPT_DIR/setup.sh"
-chmod +x "$SCRIPT_DIR/setup.sh"
+# Scripts e template (best-effort)
+[ -f "$TMPDIR/pub/start.sh" ]     && cp "$TMPDIR/pub/start.sh"     "$SCRIPT_DIR/start.sh"     && chmod +x "$SCRIPT_DIR/start.sh"
+[ -f "$TMPDIR/pub/atualizar.sh" ] && cp "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" && chmod +x "$SCRIPT_DIR/atualizar.sh"
+[ -f "$TMPDIR/pub/setup.sh" ]     && cp "$TMPDIR/pub/setup.sh"     "$SCRIPT_DIR/setup.sh"     && chmod +x "$SCRIPT_DIR/setup.sh"
+[ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
+    cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
 
-# Copia template (não sobrescreve config do usuário)
-cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template"
-
-# Atualiza versão
-cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
+[ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 
 NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
 echo ""
-echo "Atualizado para $NEW!"
-echo "Execute: bash start.sh"
+echo "Atualizado: $CURRENT -> $NEW"
+
+# Reinicia: mata só o binário (preserva start.sh para relançar).
+if pgrep -f "$BIN" >/dev/null 2>&1 \
+   || pgrep -f "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot" >/dev/null 2>&1; then
+    echo "Reiniciando bot (supervisor relança)..."
+    stop_bot_bin_only
+else
+    echo "Bot nao estava rodando. Execute: bash start.sh"
+fi
+
 echo ""
 echo "Para rollback: bash atualizar.sh rollback"
