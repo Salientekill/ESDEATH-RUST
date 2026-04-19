@@ -45,6 +45,19 @@ if [ "$MODE" = "auto" ]; then
     echo "=== ESDEATH BOT — Atualizacao automatica ==="
     echo "Versao atual: $CURRENT"
 
+    # Remove .bot.pid stale (mesma motivacao do modo update — ver abaixo).
+    if [ -f "$PID_FILE" ]; then
+        OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
+        if [ -z "$OLD_PID" ] || ! kill -0 "$OLD_PID" 2>/dev/null; then
+            rm -f "$PID_FILE"
+        else
+            OLD_CMD=$(cat "/proc/$OLD_PID/cmdline" 2>/dev/null | tr '\0' ' ')
+            if ! echo "$OLD_CMD" | grep -qE "esdeath-bot|start\.sh"; then
+                rm -f "$PID_FILE"
+            fi
+        fi
+    fi
+
     # Backup do binário atual
     if [ -f "$BIN" ]; then
         mkdir -p "$SCRIPT_DIR/.backups"
@@ -155,6 +168,24 @@ fi
 # ═══════════════════════════════════════════════════════════
 echo "=== ESDEATH BOT — Atualizador ==="
 echo "Versão atual: $CURRENT"
+
+# Remove .bot.pid stale: em panéis tipo Bronxys, ao reiniciar o container o
+# arquivo persiste com PID inválido (processo antigo já morreu). Sem essa
+# limpeza, o próximo `start.sh` pode tentar matar um PID reciclado por outro
+# processo (ex: o próprio supervisor do panel) e o bot não sobe.
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
+    if [ -z "$OLD_PID" ] || ! kill -0 "$OLD_PID" 2>/dev/null; then
+        echo "Limpando .bot.pid stale (PID $OLD_PID nao existe)."
+        rm -f "$PID_FILE"
+    else
+        OLD_CMD=$(cat "/proc/$OLD_PID/cmdline" 2>/dev/null | tr '\0' ' ')
+        if ! echo "$OLD_CMD" | grep -qE "esdeath-bot|start\.sh"; then
+            echo "Limpando .bot.pid stale (PID $OLD_PID nao e do bot: $OLD_CMD)."
+            rm -f "$PID_FILE"
+        fi
+    fi
+fi
 
 # Backup do binário atual
 if [ -f "$BIN" ]; then
