@@ -94,6 +94,16 @@ if [ "$MODE" = "auto" ]; then
     [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
         cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
 
+    # Dados JSON: adiciona os que faltam, preserva os existentes (edições do cliente)
+    if [ -d "$TMPDIR/pub/dados/org/json" ]; then
+        mkdir -p "$SCRIPT_DIR/dados/org/json"
+        for f in "$TMPDIR/pub/dados/org/json/"*.json; do
+            [ -e "$f" ] || continue
+            dest="$SCRIPT_DIR/dados/org/json/$(basename "$f")"
+            [ -f "$dest" ] || cp "$f" "$dest"
+        done
+    fi
+
     [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 
     NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
@@ -220,6 +230,16 @@ mv "$TMP_BIN" "$BIN"
 [ -f "$TMPDIR/pub/setup.sh" ]     && cp "$TMPDIR/pub/setup.sh"     "$SCRIPT_DIR/setup.sh"     && chmod +x "$SCRIPT_DIR/setup.sh"
 [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
     cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
+
+# Dados JSON: adiciona os que faltam, preserva os existentes (edições do cliente)
+if [ -d "$TMPDIR/pub/dados/org/json" ]; then
+    mkdir -p "$SCRIPT_DIR/dados/org/json"
+    for f in "$TMPDIR/pub/dados/org/json/"*.json; do
+        [ -e "$f" ] || continue
+        dest="$SCRIPT_DIR/dados/org/json/$(basename "$f")"
+        [ -f "$dest" ] || cp "$f" "$dest"
+    done
+fi
 
 [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 

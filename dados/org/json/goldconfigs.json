@@ -1,0 +1,539 @@
+{
+  "chances": {
+    "ChanceG": 3,
+    "ChanceAp": 10,
+    "ChanceR": 5,
+    "roletadasorte": 3,
+    "cachaca": 3,
+    "aviator": 3,
+    "doubleg": 5,
+    "cassino": 5,
+    "cara_coroa": 3,
+    "quiz": 2,
+    "caixamisteriosa": 5,
+    "forca": 3,
+    "corrida": 5
+  },
+  "limites": {
+    "minAposta": 10,
+    "maxAposta": 100,
+    "maxRoubo": 500,
+    "maxBolao": 50,
+    "maxJackpot": 50000,
+    "caixaMisteriosa": {
+      "minAposta": 10,
+      "maxAposta": 100
+    }
+  },
+  "recompensas": {
+    "mineracao": {
+      "min": 1,
+      "max": 100
+    },
+    "ganhoAposta": {
+      "min": 1.2,
+      "max": 4
+    },
+    "diaria": 50,
+    "forca": {
+      "base": 25,
+      "porTamanho": 2,
+      "maxRecompensa": 100,
+      "bonusVelocidade": {
+        "rapido": 1.5,
+        "medio": 1.2,
+        "normal": 1
+      }
+    }
+  },
+  "caixamisteriosa": {
+    "bombas": {
+      "minQuantidade": 1,
+      "maxQuantidade": 5,
+      "chancePorcentual": 100
+    },
+    "multiplicadores": {
+      "1": {
+        "min": 0.15,
+        "max": 0.35,
+        "maxTotal": 1.2,
+        "chanceRaro": 0.08
+      },
+      "2": {
+        "min": 0.2,
+        "max": 0.45,
+        "maxTotal": 1.4,
+        "chanceRaro": 0.16
+      },
+      "3": {
+        "min": 0.25,
+        "max": 0.6,
+        "maxTotal": 1.8,
+        "chanceRaro": 0.24
+      },
+      "4": {
+        "min": 0.35,
+        "max": 0.8,
+        "maxTotal": 2.4,
+        "chanceRaro": 0.32
+      },
+      "5": {
+        "min": 0.5,
+        "max": 1.2,
+        "maxTotal": 3,
+        "chanceRaro": 0.4
+      }
+    },
+    "diamante": {
+      "multiplicador": 3,
+      "semprePresente": true
+    },
+    "premioRaro": {
+      "multiplicadorMin": 1.5,
+      "multiplicadorMax": 3,
+      "baseCalculo": "bombas"
+    },
+    "tempo": {
+      "timeoutSegundos": 60,
+      "cooldownMinutos": 0
+    },
+    "valores": {
+      "premioMinimo": 5,
+      "premioMaximoIndividual": 1000,
+      "limiteDiamante": 500
+    },
+    "emojis": {
+      "caixa": "📦",
+      "bomba": "💣",
+      "explosao": "💥",
+      "diamante": "💎",
+      "presente": "🎁",
+      "numero1": "1️⃣",
+      "numero2": "2️⃣",
+      "numero3": "3️⃣",
+      "numero4": "4️⃣",
+      "numero5": "5️⃣",
+      "numero6": "6️⃣",
+      "numero7": "7️⃣",
+      "numero8": "8️⃣",
+      "numero9": "9️⃣",
+      "jackpot": "🏆",
+      "dificuldades": {
+        "1": "🟢",
+        "2": "🟡",
+        "3": "🟠",
+        "4": "🔴",
+        "5": "⚫"
+      }
+    },
+    "mensagens": {
+      "dificuldades": {
+        "1": "🟢 FÁCIL (1 bomba)",
+        "2": "🟡 NORMAL (2 bombas)",
+        "3": "🟠 MÉDIO (3 bombas)",
+        "4": "🔴 DIFÍCIL (4 bombas)",
+        "5": "⚫ EXTREMO (5 bombas)"
+      },
+      "lucrosEstimados": {
+        "1": "Lucro estimado: +20%",
+        "2": "Lucro estimado: +40%",
+        "3": "Lucro estimado: +80%",
+        "4": "Lucro estimado: +140%",
+        "5": "Lucro estimado: +200%"
+      },
+      "resultados": {
+        "bomba": "💥 BOOOOM! Você pegou uma bomba e perdeu tudo!",
+        "diamante": "💎 DIAMANTE ESPECIAL! +{valor} gold!",
+        "jackpot": "🏆 JACKPOT RARO! Você ganhou {valor} gold! 🎰",
+        "premio": "🎁 Parabéns! Você ganhou {valor} gold!",
+        "finalizado": "🎯 Você usou todas as suas tentativas!",
+        "parado": "🎯 Jogo finalizado! Você coletou {valor} gold!",
+        "cancelado": "🚪 Você saiu do jogo sem coletar os prêmios."
+      }
+    },
+    "balanceamento": {
+      "autoAjuste": true,
+      "fatorReducaoAuto": 0.85,
+      "limiteDiarioIndividual": 500,
+      "limiteDiarioGeral": 5000
+    }
+  },
+  "emojiGold": {
+    "horariosReset": [
+      21
+    ],
+    "janelaExecucao": 60,
+    "ranking": {
+      "primeiro": 200,
+      "segundo": 150,
+      "terceiro": 100,
+      "quarto": 50,
+      "quinto": 25
+    },
+    "settings": {
+      "goldPorAcerto": 100,
+      "pontosPorAcerto": 1,
+      "timeoutMinutos": 60
+    },
+    "combo": {
+      "ativo": true,
+      "multiplicadores": {
+        "3": 1.5,
+        "5": 2,
+        "10": 3,
+        "20": 5
+      },
+      "quebraPorOutroAcertar": true,
+      "bonusStreakPerdida": 0.5,
+      "exibirProgresso": true
+    },
+    "conquistas": {
+      "ativo": true,
+      "lista": {
+        "iniciante": {
+          "acertos": 10,
+          "gold": 100,
+          "emoji": "🌱",
+          "nome": "Iniciante"
+        },
+        "aprendiz": {
+          "acertos": 20,
+          "gold": 200,
+          "emoji": "🌿",
+          "nome": "Aprendiz"
+        },
+        "dedicado": {
+          "acertos": 30,
+          "gold": 300,
+          "emoji": "🎯",
+          "nome": "Dedicado"
+        },
+        "persistente": {
+          "acertos": 40,
+          "gold": 500,
+          "emoji": "💪",
+          "nome": "Persistente"
+        },
+        "ativo": {
+          "acertos": 50,
+          "gold": 700,
+          "emoji": "⚡",
+          "nome": "Ativo"
+        },
+        "experiente": {
+          "acertos": 60,
+          "gold": 1000,
+          "emoji": "🎖️",
+          "nome": "Experiente"
+        },
+        "veterano": {
+          "acertos": 70,
+          "gold": 1500,
+          "emoji": "⭐",
+          "nome": "Veterano"
+        },
+        "campeao": {
+          "acertos": 80,
+          "gold": 2000,
+          "emoji": "🏆",
+          "nome": "Campeão"
+        },
+        "mestre": {
+          "acertos": 90,
+          "gold": 3000,
+          "emoji": "👑",
+          "nome": "Mestre"
+        },
+        "lenda": {
+          "acertos": 100,
+          "gold": 5000,
+          "emoji": "🔥",
+          "nome": "Lenda"
+        },
+        "perfeccionista": {
+          "streak20": true,
+          "gold": 1000,
+          "emoji": "💎",
+          "nome": "Perfeccionista"
+        },
+        "velocista": {
+          "acertos5MesmoDia": true,
+          "gold": 800,
+          "emoji": "⚡",
+          "nome": "Velocista"
+        },
+        "noturno": {
+          "acertos10noturno": true,
+          "gold": 1500,
+          "emoji": "🌙",
+          "nome": "Coruja Noturna"
+        }
+      }
+    },
+    "emojiDoDia": {
+      "ativo": true,
+      "recompensa": 500,
+      "unicoPorDia": true,
+      "notificarGrupo": true,
+      "categoriaEspecial": "raro",
+      "horarioAparicao": null,
+      "emoji": "⭐"
+    },
+    "multiplicadorGrupal": {
+      "ativo": true,
+      "niveis": {
+        "5": 1.2,
+        "10": 1.5,
+        "20": 2,
+        "50": 3
+      },
+      "janelaTempo": 86400000,
+      "exibirMultiplicador": true
+    },
+    "modoNoturno": {
+      "ativo": true,
+      "horarioInicio": 0,
+      "horarioFim": 6,
+      "multiplicadorGold": 3,
+      "mensagemEspecial": true,
+      "emoji": "🌙"
+    },
+    "antiRepeticao": {
+      "ativo": true,
+      "historicoSize": 50,
+      "priorizarNaoUsados": true,
+      "poolRenovacao": 100,
+      "categoriaRotacao": true
+    }
+  },
+  "doublegold": {
+    "simbolos": {
+      "BRANCO": "⚪",
+      "VERMELHO": "🔴",
+      "PRETO": "⚫"
+    },
+    "chances": {
+      "branco": 7,
+      "vermelho": 46.5,
+      "preto": 46.5
+    },
+    "multiplicadores": {
+      "branco": 5,
+      "vermelho": 2,
+      "preto": 2
+    }
+  },
+  "roubo": {
+    "chanceBaseDeExito": 40,
+    "chanceBaseDeDefesa": 30,
+    "chanceQuebrarEscudo": 20,
+    "perdaFalhada": {
+      "min": 0,
+      "max": 50
+    }
+  },
+  "vinganca": {
+    "chanceBase": 50,
+    "chanceQuebrarEscudo": 50,
+    "multiplicadorMin": 1,
+    "multiplicadorMax": 2,
+    "chancePunicao": 20,
+    "perdaFalha": 20,
+    "tempoLimite": 86400000
+  },
+  "emprestimos": {
+    "taxaDeJuros": 0.15,
+    "tempoParaVencimento": 86400
+  },
+  "aviator": {
+    "chanceBase": 0.25,
+    "multiplicadorMin": 1.1,
+    "multiplicadorMax": 10
+  },
+  "emojis": {
+    "gold": "🪙",
+    "win": "🎉",
+    "lose": "😢",
+    "steal": "🥷",
+    "shield": "🛡️",
+    "mine": "⛏️",
+    "jackpot": "🎰",
+    "roulette": "🎡",
+    "quiz": "🧩",
+    "cachaça": "🍾",
+    "aviator": "✈️",
+    "double": "🎲",
+    "revenge": "⚔️",
+    "skull": "💀",
+    "fire": "🔥",
+    "caixamisteriosa": "🎁",
+    "trabalho": "💼",
+    "investimento": "📈",
+    "boost": "🚀"
+  },
+  "loja": {
+    "recargas": {
+      "minerar": {
+        "preco": 100,
+        "quantidade": 3,
+        "emoji": "⛏️",
+        "nome": "Recarga Minerar"
+      },
+      "roubar": {
+        "preco": 150,
+        "quantidade": 3,
+        "emoji": "🥷",
+        "nome": "Recarga Roubar"
+      },
+      "aviator": {
+        "preco": 120,
+        "quantidade": 2,
+        "emoji": "✈️",
+        "nome": "Recarga Aviator"
+      },
+      "roleta": {
+        "preco": 100,
+        "quantidade": 2,
+        "emoji": "🎡",
+        "nome": "Recarga Roleta"
+      },
+      "doublegold": {
+        "preco": 100,
+        "quantidade": 3,
+        "emoji": "🎲",
+        "nome": "Recarga Double"
+      },
+      "cachaca": {
+        "preco": 80,
+        "quantidade": 2,
+        "emoji": "🍾",
+        "nome": "Recarga Cachaça"
+      }
+    },
+    "escudo": {
+      "preco": 200,
+      "duracao": 24,
+      "emoji": "🛡️",
+      "nome": "Escudo Protetor"
+    },
+    "investimento": {
+      "ativo": true,
+      "minimo": 100,
+      "maximo": 50000,
+      "rendimentoMin": 0.02,
+      "rendimentoMax": 0.05,
+      "taxaSaque": 0.05,
+      "emoji": "📈"
+    },
+    "trabalho": {
+      "ativo": true,
+      "emoji": "💼",
+      "cargos": [
+        {
+          "nome": "Estagiário",
+          "emoji": "📋",
+          "diasNecessarios": 0,
+          "salario": 50
+        },
+        {
+          "nome": "Assistente",
+          "emoji": "📝",
+          "diasNecessarios": 3,
+          "salario": 80
+        },
+        {
+          "nome": "Júnior",
+          "emoji": "💼",
+          "diasNecessarios": 7,
+          "salario": 120
+        },
+        {
+          "nome": "Pleno",
+          "emoji": "👔",
+          "diasNecessarios": 15,
+          "salario": 180
+        },
+        {
+          "nome": "Sênior",
+          "emoji": "🎖️",
+          "diasNecessarios": 30,
+          "salario": 250
+        },
+        {
+          "nome": "Especialista",
+          "emoji": "🏅",
+          "diasNecessarios": 50,
+          "salario": 350
+        },
+        {
+          "nome": "Gerente",
+          "emoji": "📊",
+          "diasNecessarios": 75,
+          "salario": 500
+        },
+        {
+          "nome": "Diretor",
+          "emoji": "🏛️",
+          "diasNecessarios": 100,
+          "salario": 700
+        },
+        {
+          "nome": "CEO",
+          "emoji": "👑",
+          "diasNecessarios": 150,
+          "salario": 1000
+        }
+      ],
+      "bonusDiasConsecutivos": 0.05,
+      "bonusMaximo": 0.5,
+      "voltaAoInicioDoCargo": true
+    }
+  },
+  "boosts": {
+    "xp2x": {
+      "preco": 500,
+      "multiplicador": 2,
+      "duracao": 60,
+      "emoji": "🚀",
+      "nome": "Boost 2x XP"
+    },
+    "xp15x": {
+      "preco": 300,
+      "multiplicador": 1.5,
+      "duracao": 120,
+      "emoji": "⚡",
+      "nome": "Boost 1.5x XP"
+    },
+    "dailyReset": {
+      "preco": 200,
+      "emoji": "🔄",
+      "nome": "Reset Daily"
+    }
+  },
+  "gartic": {
+    "ranking": {
+      "primeiro": {
+        "base": 60,
+        "porAcerto": 15
+      },
+      "segundo": {
+        "base": 35,
+        "porAcerto": 10
+      },
+      "terceiro": {
+        "base": 15,
+        "porAcerto": 6
+      }
+    },
+    "decaimento": {
+      "passos": [
+        1,
+        0.75,
+        0.5,
+        0.25,
+        0
+      ],
+      "minGold": 1
+    }
+  }
+}
