@@ -257,7 +257,7 @@
           "nome": "Perfeccionista"
         },
         "velocista": {
-          "acertos5MesmoDia": true,
+          "reacao_max_secs": 15,
           "gold": 800,
           "emoji": "⚡",
           "nome": "Velocista"
