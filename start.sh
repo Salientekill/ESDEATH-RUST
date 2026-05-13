@@ -26,7 +26,14 @@ fi
 case "${1:-}" in
     comp)
         cargo build --release --target "$MUSL_TARGET" --manifest-path "$SCRIPT_DIR/Cargo.toml"
-        exit 0
+        BUILD_STATUS=$?
+        # Não remove target/release ou target/debug — esses são caches de
+        # `cargo check` e `comp2`, úteis pra dev rápido. Para limpar mesmo,
+        # use `bash start.sh clean`. Mantém só o sweep incremental.
+        if [ $BUILD_STATUS -eq 0 ] && command -v cargo-sweep >/dev/null 2>&1; then
+            cargo sweep --time 7 "$SCRIPT_DIR" >/dev/null 2>&1 || true
+        fi
+        exit $BUILD_STATUS
         ;;
     comp2)
         # Build nativo debug — muito mais rápido para testar alterações
@@ -36,6 +43,20 @@ case "${1:-}" in
     recomp)
         cargo clean --manifest-path "$SCRIPT_DIR/Cargo.toml"
         cargo build --release --target "$MUSL_TARGET" --manifest-path "$SCRIPT_DIR/Cargo.toml"
+        BUILD_STATUS=$?
+        if [ $BUILD_STATUS -eq 0 ] && command -v cargo-sweep >/dev/null 2>&1; then
+            cargo sweep --time 7 "$SCRIPT_DIR" >/dev/null 2>&1 || true
+        fi
+        exit $BUILD_STATUS
+        ;;
+    clean)
+        # Limpeza explícita de artefatos não-musl — equivalente ao antigo
+        # comportamento do `comp`, mas só roda quando você pede.
+        rm -rf "$SCRIPT_DIR/target/release" "$SCRIPT_DIR/target/debug" 2>/dev/null || true
+        if command -v cargo-sweep >/dev/null 2>&1; then
+            cargo sweep --time 7 "$SCRIPT_DIR" >/dev/null 2>&1 || true
+        fi
+        echo "Artefatos não-musl removidos. Cache musl mantido."
         exit 0
         ;;
     update|atualizar)
@@ -83,7 +104,7 @@ case "${1:-}" in
         ;;
     *)
         echo "Comando desconhecido: $1"
-        echo "Uso: bash start.sh [comp|comp2|recomp|update|rollback|debug|debug2|reset]"
+        echo "Uso: bash start.sh [comp|comp2|recomp|clean|update|rollback|debug|debug2|reset]"
         exit 1
         ;;
 esac
@@ -199,7 +220,15 @@ echo -e "\e[95m═════════════════════�
 
 while [ "$SHOULD_EXIT" = "0" ]; do
     echo -e "\e[32m🚀 ESDEATH BOT ESTÁ INICIANDO AGUARDE...\e[0m"
-    "$BOT_BIN" </dev/tty &
+    # Stdin do bot: /dev/tty quando interativo (pair code), /dev/null em
+    # ambientes sem tty (container, systemd). Sem o fallback, processos em
+    # background que tentam ler de /dev/tty recebem SIGTTIN e ficam parados —
+    # parece "travado" no restart após Ctrl+C porque o tty fica inconsistente.
+    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+        "$BOT_BIN" </dev/tty &
+    else
+        "$BOT_BIN" </dev/null &
+    fi
     BOT_PID=$!
     EXIT_CODE=0
     wait "$BOT_PID" 2>/dev/null || EXIT_CODE=$?
@@ -210,8 +239,16 @@ while [ "$SHOULD_EXIT" = "0" ]; do
 
     if [ "$TRAP_RESTART" = "1" ]; then
         TRAP_RESTART=0
+        echo -e "\e[93m♻️  Reiniciando após Ctrl+C...\e[0m"
+    elif [ "$EXIT_CODE" = "0" ] || [ "$EXIT_CODE" = "130" ]; then
+        # Exit clean (0) ou via SIGINT do próprio bot (130): restart curto.
+        # O caso 0 cobre quando o bot trapou SIGINT e fez shutdown gracioso —
+        # cenário em que a trap do supervisor não disparou (Ctrl+C foi
+        # consumido só pelo bot) mas queremos reiniciar imediatamente.
+        echo -e "\e[93m♻️  Bot encerrou (code=$EXIT_CODE). Reiniciando...\e[0m"
+        sleep 0.3
     else
-        echo -e "\e[91m⚠️  Bot saiu (code=$EXIT_CODE). Reiniciando em 1s...\e[0m"
+        echo -e "\e[91m⚠️  Bot crashou (code=$EXIT_CODE). Reiniciando em 1s...\e[0m"
         sleep 1
     fi
 done
