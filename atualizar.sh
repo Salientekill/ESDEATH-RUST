@@ -6,6 +6,10 @@ PID_FILE="$SCRIPT_DIR/.bot.pid"
 BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
 PUBLIC_REPO="https://github.com/Salientekill/ESDEATH-RUST.git"
 MODE="${1:-update}"
+# Tag alvo (ex: v1.138) passada pelo gate de versão do bot. Vazio = main (latest).
+# Clonar a tag garante que um cliente do major 1 baixe o binário v1.x mesmo
+# quando o main já está no v2.x — sem isso ele se brickaria (API rejeita EV2).
+TARGET_TAG="${2:-}"
 
 CURRENT=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "nenhuma")
 
@@ -68,10 +72,13 @@ if [ "$MODE" = "auto" ]; then
     TMPDIR=$(mktemp -d)
     trap "rm -rf $TMPDIR" EXIT
 
-    echo "Baixando atualizacao..."
-    if ! git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet; then
-        echo "ERRO: falha ao clonar repositorio."
-        exit 1
+    echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
+    if [ -n "$TARGET_TAG" ]; then
+        git clone --depth 1 --branch "$TARGET_TAG" "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
+            || { echo "ERRO: falha ao clonar a tag $TARGET_TAG."; exit 1; }
+    else
+        git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
+            || { echo "ERRO: falha ao clonar repositorio."; exit 1; }
     fi
 
     if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
@@ -204,13 +211,16 @@ if [ -f "$BIN" ]; then
     ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
 fi
 
-echo "Baixando atualizacao..."
+echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
 TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
-if ! git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet; then
-    echo "ERRO: falha ao clonar repositorio (git instalado e rede ok?)."
-    exit 1
+if [ -n "$TARGET_TAG" ]; then
+    git clone --depth 1 --branch "$TARGET_TAG" "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
+        || { echo "ERRO: falha ao clonar a tag $TARGET_TAG (git instalado e rede ok?)."; exit 1; }
+else
+    git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
+        || { echo "ERRO: falha ao clonar repositorio (git instalado e rede ok?)."; exit 1; }
 fi
 
 if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
