@@ -31,7 +31,7 @@ case "${1:-}" in
         # `cargo check` e `comp2`, úteis pra dev rápido. Para limpar mesmo,
         # use `bash start.sh clean`. Mantém só o sweep incremental.
         if [ $BUILD_STATUS -eq 0 ] && command -v cargo-sweep >/dev/null 2>&1; then
-            cargo sweep --time 7 "$SCRIPT_DIR" >/dev/null 2>&1 || true
+            cargo sweep --time 3 "$SCRIPT_DIR" >/dev/null 2>&1 || true
         fi
         exit $BUILD_STATUS
         ;;
@@ -45,7 +45,7 @@ case "${1:-}" in
         cargo build --release --target "$MUSL_TARGET" --manifest-path "$SCRIPT_DIR/Cargo.toml"
         BUILD_STATUS=$?
         if [ $BUILD_STATUS -eq 0 ] && command -v cargo-sweep >/dev/null 2>&1; then
-            cargo sweep --time 7 "$SCRIPT_DIR" >/dev/null 2>&1 || true
+            cargo sweep --time 3 "$SCRIPT_DIR" >/dev/null 2>&1 || true
         fi
         exit $BUILD_STATUS
         ;;
@@ -54,7 +54,7 @@ case "${1:-}" in
         # comportamento do `comp`, mas só roda quando você pede.
         rm -rf "$SCRIPT_DIR/target/release" "$SCRIPT_DIR/target/debug" 2>/dev/null || true
         if command -v cargo-sweep >/dev/null 2>&1; then
-            cargo sweep --time 7 "$SCRIPT_DIR" >/dev/null 2>&1 || true
+            cargo sweep --time 3 "$SCRIPT_DIR" >/dev/null 2>&1 || true
         fi
         echo "Artefatos não-musl removidos. Cache musl mantido."
         exit 0
