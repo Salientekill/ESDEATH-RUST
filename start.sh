@@ -23,9 +23,41 @@ else
     BOT_BIN=""
 fi
 
+# ── Build MUSL via cargo-zigbuild ──────────────────────────────────────────
+# O comando !akinator usa o crate `wreq` (BoringSSL) para passar o fingerprint
+# TLS do Cloudflare do Akinator. BoringSSL é C++ e não cross-compila pro target
+# MUSL com o musl-gcc comum; usamos `cargo zigbuild` (o `zig cc` traz libc++ +
+# musl). Pré-requisitos, instalados UMA vez no servidor de build:
+#   uv tool install ziglang        # binário do zig (PyPI oficial)
+#   cargo install cargo-zigbuild   # wrapper de cross-compile (crates.io)
+ensure_zig() {
+    if ! command -v zig >/dev/null 2>&1; then
+        if command -v python-zig >/dev/null 2>&1; then
+            printf '#!/bin/sh\nexec %s "$@"\n' "$(command -v python-zig)" > "$HOME/.cargo/bin/zig"
+            chmod +x "$HOME/.cargo/bin/zig"
+        else
+            echo "ERRO: zig não encontrado. Instale com: uv tool install ziglang" >&2
+            return 1
+        fi
+    fi
+    if ! cargo zigbuild --help >/dev/null 2>&1; then
+        echo "ERRO: cargo-zigbuild ausente. Instale com: cargo install cargo-zigbuild" >&2
+        return 1
+    fi
+}
+musl_build() {
+    ensure_zig || return 1
+    # Protege os bots em produção (mesmo servidor, 4 cores): `nice -n 19` cede CPU
+    # pros bots; `-j 2` + CMAKE limitado usam no máx ~2 cores, deixando 2 livres —
+    # evita saturar a CPU e causar latência/desconexão dos bots durante o build.
+    CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 \
+        cargo zigbuild --release --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
+        --manifest-path "$SCRIPT_DIR/Cargo.toml"
+}
+
 case "${1:-}" in
     comp)
-        cargo build --release --target "$MUSL_TARGET" --manifest-path "$SCRIPT_DIR/Cargo.toml"
+        musl_build
         BUILD_STATUS=$?
         # Não remove target/release ou target/debug — esses são caches de
         # `cargo check` e `comp2`, úteis pra dev rápido. Para limpar mesmo,
@@ -42,7 +74,7 @@ case "${1:-}" in
         ;;
     recomp)
         cargo clean --manifest-path "$SCRIPT_DIR/Cargo.toml"
-        cargo build --release --target "$MUSL_TARGET" --manifest-path "$SCRIPT_DIR/Cargo.toml"
+        musl_build
         BUILD_STATUS=$?
         if [ $BUILD_STATUS -eq 0 ] && command -v cargo-sweep >/dev/null 2>&1; then
             cargo sweep --time 3 "$SCRIPT_DIR" >/dev/null 2>&1 || true
@@ -65,7 +97,7 @@ case "${1:-}" in
             git -C "$SCRIPT_DIR/whatsapp-rust" stash -q 2>/dev/null || true
             git -C "$SCRIPT_DIR/whatsapp-rust" pull origin main
             git -C "$SCRIPT_DIR/whatsapp-rust" stash pop -q 2>/dev/null || true
-            cargo build --release --target "$MUSL_TARGET" --manifest-path "$SCRIPT_DIR/Cargo.toml"
+            musl_build
         elif [ -f "$SCRIPT_DIR/atualizar.sh" ]; then
             exec bash "$SCRIPT_DIR/atualizar.sh"
         else
