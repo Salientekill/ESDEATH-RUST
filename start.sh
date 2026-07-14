@@ -10,6 +10,9 @@ DB="${BOT_DB_PATH:-"$SCRIPT_DIR/dados/DB/ESDEATH_AUTH.db"}"
 DEV_BIN="$SCRIPT_DIR/target/$MUSL_TARGET/release/esdeath-bot"
 DBG_BIN="$SCRIPT_DIR/target/debug/esdeath-bot"
 PUB_BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
+# Binario de profiling do dhat (build via `bash start.sh dhat`) — rodado por
+# `./start.sh ram`. Nunca entra na deteccao automatica de BOT_BIN acima.
+PROF_BIN="$SCRIPT_DIR/target/$MUSL_TARGET/profiling/esdeath-bot"
 
 if [ -f "$DBG_BIN" ] && [ "$DBG_BIN" -nt "$DEV_BIN" ] 2>/dev/null; then
     BOT_BIN="$DBG_BIN"
@@ -50,14 +53,18 @@ musl_build() {
     # Protege os bots em produção (mesmo servidor, 4 cores): `nice -n 19` cede CPU
     # pros bots; `-j 2` + CMAKE limitado usam no máx ~2 cores, deixando 2 livres —
     # evita saturar a CPU e causar latência/desconexão dos bots durante o build.
+    local feats=""
+    [ "${1:-}" = "jemalloc" ] && feats="--features jemalloc"
     CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 \
         cargo zigbuild --release --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
-        --manifest-path "$SCRIPT_DIR/Cargo.toml"
+        $feats --manifest-path "$SCRIPT_DIR/Cargo.toml"
 }
 
 case "${1:-}" in
     comp)
-        musl_build
+        # comp [jemalloc] -> alocador de producao jemalloc (RSS desce via decay).
+        # Sem arg = CountingAlloc (memmon com heap-vivo real).
+        musl_build "${2:-}"
         BUILD_STATUS=$?
         # Não remove target/release ou target/debug — esses são caches de
         # `cargo check` e `comp2`, úteis pra dev rápido. Para limpar mesmo,
@@ -78,6 +85,30 @@ case "${1:-}" in
         BUILD_STATUS=$?
         if [ $BUILD_STATUS -eq 0 ] && command -v cargo-sweep >/dev/null 2>&1; then
             cargo sweep --time 3 "$SCRIPT_DIR" >/dev/null 2>&1 || true
+        fi
+        exit $BUILD_STATUS
+        ;;
+    dhat)
+        # Build de PROFILING do dhat (Camada 3 do memmon): feature `dhat-heap`
+        # troca o alocador pelo profiler; perfil `profiling` mantem debug info e
+        # nao faz strip; RUSTFLAGS forca frame-pointers + unwind-tables pra o
+        # backtrace crate CAMINHAR a pilha e simbolizar os callsites que alocam.
+        # Sem isso o dhat-heap.json sai com ftbl=['[root]'] / fs=[] (so bytes,
+        # sem nomes). Build-only (como `comp`): rode o binario, gere carga, use
+        # !dhatdump (ou SIGUSR1) e analise:
+        #   cargo run --bin dhat_report -- logs/dhat-heap.json
+        ensure_zig || exit 1
+        RUSTFLAGS="${RUSTFLAGS:-} -Cforce-frame-pointers=yes -Cforce-unwind-tables=yes" \
+        CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 \
+            cargo zigbuild --profile profiling --features dhat-heap \
+            --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
+            --manifest-path "$SCRIPT_DIR/Cargo.toml"
+        BUILD_STATUS=$?
+        if [ $BUILD_STATUS -eq 0 ]; then
+            echo "Binario de profiling: target/$MUSL_TARGET/profiling/esdeath-bot"
+            echo "Rode com: ./start.sh ram   (gerenciado: PID/stop/supervisor)"
+            echo "Gere carga, dispare !dhatdump; depois analise com:"
+            echo "  cargo run --bin dhat_report -- logs/dhat-heap.json"
         fi
         exit $BUILD_STATUS
         ;;
@@ -132,11 +163,46 @@ case "${1:-}" in
         rm -f "$DB" "$DB-shm" "$DB-wal"
         echo "Sessao removida. Reconectando..."
         ;;
+    ram)
+        # ./start.sh ram [dhat|jemalloc]
+        #   com arg -> builda o profiler escolhido (default jemalloc = Rust + libs C)
+        #   sem arg -> roda o binario de profiling ja buildado
+        # Roda pela MESMA logica de PID/stop/supervisor. NAO e producao (lento).
+        # Ao SAIR (Ctrl+C 2x): dhat -> !dhatdump/logs/dhat-heap.json ; jemalloc ->
+        # logs/jeprof.<pid>.*.heap. Depois volte ao normal com `./start.sh`.
+        case "${2:-}" in
+            "") ;;
+            dhat | jemalloc)
+                FEAT="jemalloc-prof"
+                [ "$2" = "dhat" ] && FEAT="dhat-heap"
+                ensure_zig || exit 1
+                echo "Buildando profiling ($2, feature $FEAT)..."
+                CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 \
+                    cargo zigbuild --profile profiling --features "$FEAT" \
+                    --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
+                    --manifest-path "$SCRIPT_DIR/Cargo.toml" || exit 1
+                ;;
+            *)
+                echo "Uso: ./start.sh ram [dhat|jemalloc]  (sem arg = roda o ja buildado)"
+                exit 1
+                ;;
+        esac
+        if [ ! -f "$PROF_BIN" ]; then
+            echo "Binario de profiling nao encontrado. Rode: ./start.sh ram jemalloc  (ou dhat)"
+            exit 1
+        fi
+        BOT_BIN="$PROF_BIN"
+        # jemalloc: ativa prof + dump ao sair (logs/jeprof.<pid>.*.heap). Se for
+        # build dhat, o MALLOC_CONF e ignorado (nao ha jemalloc pra ler).
+        export MALLOC_CONF="prof:true,prof_active:true,prof_prefix:logs/jeprof,prof_final:true,lg_prof_sample:19"
+        echo -e "\e[93m⚠️  PROFILING — NAO e producao. Depois volte com ./start.sh\e[0m"
+        ;;
     "")
         ;;
     *)
         echo "Comando desconhecido: $1"
-        echo "Uso: bash start.sh [comp|comp2|recomp|clean|update|rollback|debug|debug2|reset]"
+        echo "Uso: bash start.sh [comp|comp2|recomp|dhat|ram|clean|update|rollback|debug|debug2|reset]"
+        echo "     ram [dhat|jemalloc] = builda o profiler e roda (default jemalloc)"
         exit 1
         ;;
 esac
@@ -175,7 +241,7 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 # 2) Fallback: mata qualquer processo com este binario
-for BIN_PATTERN in "$DEV_BIN" "$PUB_BIN"; do
+for BIN_PATTERN in "$DEV_BIN" "$PUB_BIN" "$PROF_BIN"; do
     if pgrep -f "$BIN_PATTERN" >/dev/null 2>&1; then
         echo "Fechando instancias orfas ($BIN_PATTERN)..."
         pkill -f "$BIN_PATTERN" 2>/dev/null || true
@@ -237,6 +303,11 @@ on_sigterm() {
 trap on_sigint  INT
 trap on_sigtstp TSTP
 trap on_sigterm TERM
+
+# jemalloc (build `comp jemalloc`): decay devolve memoria liberada pro SO -> a
+# RSS desce apos picos de midia. Ignorado por build nao-jemalloc. `ram` ja setou
+# o seu (prof), entao `:-` preserva.
+export MALLOC_CONF="${MALLOC_CONF:-background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000}"
 
 # PID do supervisor (quem mata este PID encerra tudo via trap TERM)
 echo "$$" > "$PID_FILE"
