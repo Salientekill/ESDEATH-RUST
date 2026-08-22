@@ -55,7 +55,11 @@ musl_build() {
     # evita saturar a CPU e causar latência/desconexão dos bots durante o build.
     local feats=""
     [ "${1:-}" = "jemalloc" ] && feats="--features jemalloc"
-    CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 \
+    # `nice` cede CPU, mas NÃO cede prioridade de I/O — e o gargalo medido em
+    # 21/08 foi disco, não CPU: o rustc empurrou o page cache do SQLite pra fora
+    # e um `db.run` levou 56s. `ionice -c3` (classe idle) faz o build só usar
+    # disco quando ninguém mais quer.
+    CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 ionice -c3 \
         cargo zigbuild --release --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
         $feats --manifest-path "$SCRIPT_DIR/Cargo.toml"
 }
