@@ -70,6 +70,9 @@ echo ""
 if [ ! -f "$SCRIPT_DIR/esdeath/esdeath-bot" ]; then
     echo "[1/5] Baixando arquivos do repo público..."
     TMPDIR=$(mktemp -d)
+    # shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está
+    # na linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável
+    # sumisse no caminho.
     trap "rm -rf $TMPDIR" EXIT
     git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet
     # Copia binário e scripts
@@ -157,10 +160,13 @@ fi
 
 # ── 4. Verificar chave ──────────────────────────────────────────────────────
 echo "[4/5] Verificando chave de acesso..."
-if [ -f "$SCRIPT_DIR/dados/chave.dat" ] || [ -f "$SCRIPT_DIR/dados/chave.txt" ]; then
-    echo "      Chave encontrada."
+# A chave é colada na primeira execução e fica cifrada em apikey.enc (a cifra é
+# derivada da máquina, então copiar esse arquivo para outro host não funciona).
+if [ -f "$SCRIPT_DIR/dados/org/json/apikey.enc" ]; then
+    echo "      Chave já configurada nesta máquina."
     KEY_OK=1
 else
+    echo "      Ainda não configurada — o bot pede na primeira execução."
     KEY_OK=0
 fi
 
@@ -173,13 +179,12 @@ echo ""
 if [ "$KEY_OK" = "0" ]; then
     echo "  ⚠️  FALTA APENAS 1 PASSO:"
     echo ""
-    echo "     Coloque a chave de acesso em:"
-    echo "        dados/chave.dat"
+    echo "     Deixe à mão a chave de acesso que você recebeu"
+    echo "     do desenvolvedor e inicie o bot:"
     echo ""
-    echo "     (você recebeu do desenvolvedor)"
+    echo "        bash start.sh"
     echo ""
-    echo "  Depois execute:"
-    echo "     bash start.sh"
+    echo "     Ele vai pedir a chave — é só colar e dar Enter."
 else
     echo "  Tudo pronto! Inicie o bot com:"
     echo "     bash start.sh"

@@ -1,0 +1,587 @@
+[
+  {
+    "id": "4a0c1675-7bf7-4483-b2c4-9c34551007cf",
+    "para": "global",
+    "contenha": [
+      "bom dia bot"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/Bom%20Dia.m4a",
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/Bom%20Dia%20Bora%20Trabalhar.m4a",
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/Bom%20Dia%20Que%20Sono.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "eb7b6845-5d24-4b79-8dcb-6200f4df9a63",
+    "para": "global",
+    "contenha": [
+      "boa tarde bot"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/Boa%20Tarde.m4a",
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/Tarde%20Ensolarada.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "5a53c05a-bf38-4779-9e19-4055cc7ee439",
+    "para": "global",
+    "contenha": [
+      "boa noite bot"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/boa%20noite.m4a",
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/que%20noite%20linda.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "18d76dd3-e057-4205-884c-0525ac289d4e",
+    "para": "global",
+    "contenha": [
+      "esdeath gostosa",
+      "bot gostosa"
+    ],
+    "enviar": [
+      "./dados/midias/figs/gsts.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "8fbee70e-c1fd-4f0a-a4ed-0f58c78ab402",
+    "para": "global",
+    "contenha": [
+      "busco sexo",
+      "busco seqçu"
+    ],
+    "enviar": [
+      "./dados/midias/figs/bss.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "f3a19e54-c82d-41e5-9f03-b892a5562fed",
+    "para": "global",
+    "contenha": [
+      "tedio"
+    ],
+    "enviar": [
+      "./dados/midias/figs/tedio.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "5540dd67-f190-4126-b274-00c04ec289d1",
+    "para": "global",
+    "contenha": [
+      "safadenha",
+      "safadenho"
+    ],
+    "enviar": [
+      "./dados/midias/figs/insolente.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "67e215af-25e9-4bbf-a731-b7760132cd1e",
+    "para": "global",
+    "contenha": [
+      "cachorro"
+    ],
+    "enviar": [
+      "./dados/midias/figs/cachorro.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "75010db9-754e-4692-9b67-2ea5007ff80c",
+    "para": "global",
+    "contenha": [
+      "esdeath linda",
+      "bot linda"
+    ],
+    "enviar": [
+      "./dados/midias/figs/sps.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "8dec8b94-a102-4082-8dbf-c67af4e5204d",
+    "para": "global",
+    "contenha": [
+      "esdeath fofa",
+      "bot fofa"
+    ],
+    "enviar": [
+      "./dados/midias/figs/fofa.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "bdd2ea0c-a472-423c-9389-f08fa50c9ed5",
+    "para": "global",
+    "contenha": [
+      "bot chato",
+      "bot chata",
+      "esdeath chata"
+    ],
+    "enviar": [
+      "./dados/midias/figs/insolente.webp"
+    ],
+    "tipo": "sticker"
+  },
+  {
+    "id": "0a748d68-f117-43e6-9fb2-640983cdfb9f",
+    "para": "global",
+    "contenha": [
+      "bot corno",
+      "bot corna"
+    ],
+    "enviar": [
+      "Corno é você, seu animal"
+    ],
+    "tipo": "texto"
+  },
+  {
+    "id": "a6ab0a3f-e664-46c5-a1b6-05068de2ed08",
+    "para": "global",
+    "contenha": [
+      "cheiro de pica"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/memes/cheirodep.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "6c0cde6b-39b4-4943-98c5-7147c7f09589",
+    "para": "global",
+    "contenha": [
+      "boto todinho",
+      "bota todinho"
+    ],
+    "enviar": [
+      "https://github.com/Salientekill/figurinhas/raw/main/audios/memes/botartodinho.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "8707ae36-ba5e-431b-b8d8-da904dc0bbb4",
+    "para": "global",
+    "contenha": [
+      "muito sexo"
+    ],
+    "enviar": [
+      "https://github.com/Salientekill/figurinhas/raw/main/audios/memes/muitosexo.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "eeab9932-5464-4dab-b0be-ce2cd2fe34bf",
+    "para": "global",
+    "contenha": [
+      "calvo",
+      "tropa do calvo"
+    ],
+    "enviar": [
+      "https://github.com/Salientekill/figurinhas/raw/main/audios/memes/tropadocalvo.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "3d8a8dd1-7608-4ab3-b61b-06b04be4518e",
+    "para": "global",
+    "contenha": [
+      "parabens",
+      "aniversario"
+    ],
+    "enviar": [
+      "https://github.com/Salientekill/figurinhas/raw/main/audios/dub/parabens.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "677ca614-b1ae-4394-b69b-76cc795443b8",
+    "para": "global",
+    "contenha": [
+      "que interessante"
+    ],
+    "enviar": [
+      "https://github.com/Salientekill/figurinhas/raw/main/audios/dub/nossa%2C%20interessante.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "bf385da4-869a-45b4-a8ff-7619e07f2dc9",
+    "para": "global",
+    "contenha": [
+      "estou bem"
+    ],
+    "enviar": [
+      "https://github.com/Salientekill/figurinhas/raw/main/audios/dub/que%20bom.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "5964093a-ce1b-4df9-8688-2caa40bf4325",
+    "para": "global",
+    "contenha": [
+      "e mesmo"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/hm%2C%20e%20mesmo.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "4f2179aa-05aa-4a67-8c1b-2459ec12b958",
+    "para": "global",
+    "comece": [
+      "gostei"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/serio%2C%20que%20legal.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "e4d107da-1d3e-4c11-be64-51c582557cb3",
+    "para": "global",
+    "comece": [
+      "idiota"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/voce%20me%20irrita.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "a76a867a-c6f7-4abf-86a0-d353b6cc08d3",
+    "para": "global",
+    "comece": [
+      "bora"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/vamos%20la.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "7da0fb18-a43b-4c0a-ad3e-03e7b257641f",
+    "para": "global",
+    "comece": [
+      "tenso"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/tenso.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "39d1c255-a3cd-4100-9371-4cc9485a399e",
+    "para": "global",
+    "comece": [
+      "kkkkkkkkkkkkkkkkkkk"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/risada.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "5d6ad97f-a1eb-4bdb-bf71-25709caf31bf",
+    "para": "global",
+    "contenha": [
+      "serio"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/serio%2C%20que%20legal.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "83cf4740-379c-4aa5-bfe3-76f41d9a0ae6",
+    "para": "global",
+    "contenha": [
+      "que legal"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/que%20legal.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "f67982f2-c972-4472-a77e-32e5e330addf",
+    "para": "global",
+    "comece": [
+      "gostosa"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/rebanho%20de%20gados.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "937be76e-a7c1-4c46-837d-7d3174354e83",
+    "para": "global",
+    "comece": [
+      "feia"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/ridiculo.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "70d95a4a-60c5-4df9-8a37-d073aafc0e01",
+    "para": "global",
+    "contenha": [
+      "que fofo"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/que%20fofo.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "1c49864f-cd37-4809-a185-0430350aa2ae",
+    "para": "global",
+    "comece": [
+      "foda"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/que%20foda.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "7c118af2-900d-4692-a871-d73a25ff2551",
+    "para": "global",
+    "contenha": [
+      "gore"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/nao%20gosto%20desse%20tipo%20de%20coisa.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "8614e64e-bd6f-4d6f-9db0-ce0c8ae62071",
+    "para": "global",
+    "contenha": [
+      "que gay"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/hm%2C%20gay.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "3838dfc2-5384-454c-b50a-35726531719d",
+    "para": "global",
+    "exato": [
+      "aim",
+      "aiim",
+      "ain",
+      "aiin"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/mano%20tu%20e%20gay.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "ab74503d-5ef6-4f0d-9488-2e1baacd46fa",
+    "para": "global",
+    "comece": [
+      "legal"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/hm%2C%20e%20mesmo.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "93d7da26-5d10-42a2-8839-56aad90fbbce",
+    "para": "global",
+    "comece": [
+      "oie",
+      "ola"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/como%20vc%20esta.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "f27650f3-6707-4ce0-89f0-eedc6df614ed",
+    "para": "global",
+    "comece": [
+      "chato"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/chato%20em.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "045220e9-1478-481a-9340-6e57e1110206",
+    "para": "global",
+    "comece": [
+      "babaca",
+      "otario"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/cara%20babaca.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "0daebaa6-c524-44b0-9cba-38184ecd33b9",
+    "para": "global",
+    "comece": [
+      "burro"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/burrice.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "89a35ddf-4799-4fb7-9455-c452c19ba06e",
+    "para": "global",
+    "comece": [
+      "fofo"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/achei%20fofo.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "8156264b-0e45-4758-868e-59d6f2d19473",
+    "para": "global",
+    "comece": [
+      "tsunami"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/memes/tsunami.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "0acb8a6f-6807-428a-84c5-6bb6b9b33fd1",
+    "para": "global",
+    "contenha": [
+      "ele me irrita"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/me%20irrita%20tbm.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "71490a4d-c23e-4da6-8097-6b56222b88f6",
+    "para": "global",
+    "contenha": [
+      "bot irritante"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/irritante%20aqua.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "df015c76-e3e6-4d01-bd3e-f493afd3da2c",
+    "para": "global",
+    "contenha": [
+      "to doente",
+      "estou doente",
+      "estou triste",
+      "to triste"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/espero%20que%20fique%20bem.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "9d63f1b1-79e1-43db-bbeb-4fcf83dc8885",
+    "para": "global",
+    "contenha": [
+      "fino"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/figs/aleat%C3%B3rios/fino.jpg"
+    ],
+    "tipo": "stickerlink"
+  },
+  {
+    "id": "8c409552-869d-4812-b124-02515d76d970",
+    "para": "global",
+    "contenha": [
+      "transcendeu",
+      "genio"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/figs/aleat%C3%B3rios/transcendeu1.mp4"
+    ],
+    "tipo": "stickerlink"
+  },
+  {
+    "id": "b760702e-b91a-428d-b842-7a70e3382f8d",
+    "para": "global",
+    "contenha": [
+      "o lotus"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/o%20lotus.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "6bddbd21-3df6-426b-868f-d0c2b2934c6f",
+    "para": "global",
+    "contenha": [
+      "o nero"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub/nero.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "caf528cc-de73-4a2c-9a10-ae9aa87c6fe3",
+    "para": "global",
+    "contenha": [
+      "oniichan"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub3/oniichan.mp3"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "fdec8559-e15a-45a1-85fb-131940e1df8a",
+    "para": "global",
+    "contenha": [
+      "yamete"
+    ],
+    "enviar": [
+      "https://raw.githubusercontent.com/Salientekill/figurinhas/main/audios/dub3/yamete.m4a"
+    ],
+    "tipo": "audio"
+  },
+  {
+    "id": "6e15d971-6d8f-45ad-b9a4-3f422aa8f0fa",
+    "para": "global",
+    "contenha": [
+      "Testelink"
+    ],
+    "enviar": [
+      "#linkgp#"
+    ],
+    "tipo": "texto"
+  }
+]

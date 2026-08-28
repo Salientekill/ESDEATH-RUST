@@ -4,6 +4,39 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
 BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
+
+# Dados JSON: soma o que falta, sem tocar no que o cliente editou.
+#
+# Antes, o arquivo era copiado só quando NÃO existia — o que preserva as
+# edições dele, mas congela as nossas: quem já tinha rodado o bot uma vez nunca
+# mais recebia brincadeira, frase ou resposta nova. O merge é aditivo e roda no
+# binário, que sabe ler JSON: chave nova entra, chave existente fica com o
+# valor do cliente. `mesclar_dados` cai no comportamento antigo se o binário
+# for velho demais pra conhecer a flag.
+mesclar_dados() {
+    [ -d "$TMPDIR/pub/dados/org/json" ] || return 0
+    mkdir -p "$SCRIPT_DIR/dados/org/json"
+    # `timeout` porque binário anterior à flag NÃO falha com um argumento que
+    # não conhece — ele ignora e sobe o bot. Na distribuição normal script e
+    # binário chegam juntos e isso não acontece, mas o custo do cinto é uma
+    # linha e o de errar é uma atualização que nunca termina.
+    _t=""
+    command -v timeout >/dev/null 2>&1 && _t="timeout 120"
+    if (cd "$SCRIPT_DIR" && $_t "$BIN" --mesclar-dados "$TMPDIR/pub/dados/org/json"); then
+        return 0
+    fi
+    echo "   (merge indisponível: copiando só os arquivos ausentes)"
+    for f in "$TMPDIR/pub/dados/org/json/"*.json; do
+        [ -e "$f" ] || continue
+        dest="$SCRIPT_DIR/dados/org/json/$(basename "$f")"
+        [ -f "$dest" ] || cp "$f" "$dest" || echo "   ! não deu pra copiar $(basename "$f")"
+    done
+    # Dado é best-effort: quando esta função roda, o binário novo JÁ está no
+    # lugar e o `.version` ainda não foi gravado. Sob `set -e`, um `cp` que
+    # falhasse abortaria aqui e deixaria o cliente com binário novo e versão
+    # antiga registrada — pior que ficar sem uma brincadeira.
+    return 0
+}
 PUBLIC_REPO="https://github.com/Salientekill/ESDEATH-RUST.git"
 MODE="${1:-update}"
 # Tag alvo (ex: v1.138) passada pelo gate de versão do bot. Vazio = main (latest).
@@ -70,6 +103,9 @@ if [ "$MODE" = "auto" ]; then
     fi
 
     TMPDIR=$(mktemp -d)
+    # shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está
+    # na linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável
+    # sumisse no caminho.
     trap "rm -rf $TMPDIR" EXIT
 
     echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
@@ -101,15 +137,7 @@ if [ "$MODE" = "auto" ]; then
     [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
         cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
 
-    # Dados JSON: adiciona os que faltam, preserva os existentes (edições do cliente)
-    if [ -d "$TMPDIR/pub/dados/org/json" ]; then
-        mkdir -p "$SCRIPT_DIR/dados/org/json"
-        for f in "$TMPDIR/pub/dados/org/json/"*.json; do
-            [ -e "$f" ] || continue
-            dest="$SCRIPT_DIR/dados/org/json/$(basename "$f")"
-            [ -f "$dest" ] || cp "$f" "$dest"
-        done
-    fi
+    mesclar_dados
 
     [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 
@@ -213,6 +241,8 @@ fi
 
 echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
 TMPDIR=$(mktemp -d)
+# shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está na
+# linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável sumisse.
 trap "rm -rf $TMPDIR" EXIT
 
 if [ -n "$TARGET_TAG" ]; then
@@ -241,15 +271,7 @@ mv "$TMP_BIN" "$BIN"
 [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
     cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
 
-# Dados JSON: adiciona os que faltam, preserva os existentes (edições do cliente)
-if [ -d "$TMPDIR/pub/dados/org/json" ]; then
-    mkdir -p "$SCRIPT_DIR/dados/org/json"
-    for f in "$TMPDIR/pub/dados/org/json/"*.json; do
-        [ -e "$f" ] || continue
-        dest="$SCRIPT_DIR/dados/org/json/$(basename "$f")"
-        [ -f "$dest" ] || cp "$f" "$dest"
-    done
-fi
+mesclar_dados
 
 [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 
