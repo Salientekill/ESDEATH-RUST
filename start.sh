@@ -181,7 +181,15 @@ case "${1:-}" in
         mkdir -p "$SCRIPT_DIR/.backups"
         if [ -f "$DEV_BIN" ]; then
             ANTES=$("$DEV_BIN" --version 2>&1 | head -1 || echo "?")
-            cp "$DEV_BIN" "$SCRIPT_DIR/.backups/esdeath-bot.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+            # Nome = VERSÃO, não timestamp: é assim que o `atualizar.sh` do
+            # cliente grava e é de onde o `rollback` tira o `.version`. Com
+            # timestamp o rollback anunciaria "revertido para 20260829-130041".
+            ANTES_V=$(echo "$ANTES" | awk '{print $NF}')
+            [ -n "$ANTES_V" ] || ANTES_V="desconhecida"
+            cp "$DEV_BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${ANTES_V}" 2>/dev/null || true
+            # Retém 3, igual ao cliente: são ~24 MB cada.
+            ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 \
+                | xargs rm -f 2>/dev/null || true
             echo "  substituindo: $ANTES"
         fi
         mkdir -p "$(dirname "$DEV_BIN")"
@@ -211,11 +219,29 @@ case "${1:-}" in
             echo "Nenhum backup encontrado."
             exit 1
         fi
-        cp "$BACKUP" "$PUB_BIN"
-        chmod +x "$PUB_BIN"
+        # Destino é o binário EM USO, não um caminho fixo. Numa instalação de
+        # cliente é o `esdeath/`; aqui na dev é o `target/`, e restaurar no
+        # `esdeath/` criava um arquivo que ninguém executa — o rollback dizia
+        # "revertido" e o bot seguia na versão nova.
+        if [ -f "$DEV_BIN" ]; then ALVO="$DEV_BIN"; else ALVO="$PUB_BIN"; fi
+        # `cp` por cima de binário EM EXECUÇÃO devolve ETXTBSY, e como este
+        # script não roda com `set -e` o erro passava batido e o "Revertido"
+        # saía mesmo sem nada ter mudado. Escreve ao lado e renomeia.
+        if ! cp "$BACKUP" "$ALVO.tmp" || ! mv -f "$ALVO.tmp" "$ALVO"; then
+            rm -f "$ALVO.tmp"
+            echo "ERRO: não deu pra restaurar em $ALVO" >&2
+            exit 1
+        fi
+        chmod +x "$ALVO"
         VERSION=$(basename "$BACKUP" | sed 's/esdeath-bot\.//')
         echo "$VERSION" > "$SCRIPT_DIR/.version"
-        echo "Revertido para $VERSION"
+        echo "Revertido para $VERSION ($ALVO)"
+        # Sem isto o arquivo volta e o processo continua no que já estava
+        # carregado — reverter sem reiniciar não reverte nada.
+        if pgrep -f "$ALVO" >/dev/null 2>&1; then
+            echo "  reiniciando o bot..."
+            pkill -f "$ALVO" 2>/dev/null || true
+        fi
         exit 0
         ;;
     debug)
@@ -371,6 +397,22 @@ on_sigterm() {
 trap on_sigint  INT
 trap on_sigtstp TSTP
 trap on_sigterm TERM
+
+# Sinal que chega IGNORADO na entrada do shell não pode ser trapado: o bash
+# recusa e não diz nada ("Signals ignored upon entry to the shell cannot be
+# trapped or reset", man bash). Acontece quando quem chamou este script rodou
+# `trap "" SIGINT` — um wrapper de `screen`, por exemplo —, e o efeito é o
+# Ctrl+C simplesmente não fazer nada: nem o restart, nem o duplo que encerra.
+#
+# Sem esta checagem a falha é invisível: as três linhas acima "passam", o
+# cabeçalho segue anunciando os atalhos, e nenhum deles funciona.
+if [ "$(trap -p INT)" = "trap -- '' SIGINT" ]; then
+    echo -e "\e[91m⚠️  SIGINT chegou IGNORADO: Ctrl+C não vai funcionar aqui.\e[0m"
+    echo -e "\e[93m    Quem iniciou este script rodou \`trap '' SIGINT\`, e o bash não\e[0m"
+    echo -e "\e[93m    deixa instalar handler pra sinal ignorado na entrada.\e[0m"
+    echo -e "\e[93m    Inicie sem ele:  screen -dmS esdeath bash -c 'cd ~/nrust && bash start.sh'\e[0m"
+    echo -e "\e[93m    Encerrar agora:  kill $$\e[0m"
+fi
 
 # jemalloc (build `comp jemalloc`): decay devolve memoria liberada pro SO -> a
 # RSS desce apos picos de midia. Ignorado por build nao-jemalloc. `ram` ja setou
