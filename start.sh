@@ -4,6 +4,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MUSL_TARGET="x86_64-unknown-linux-musl"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
+# Nome do executável, igual nos dois lados: é como o asset sai da release
+# pública e como o binário se chama aqui.
+BIN_NAME_PUB="esdeath-bot"
 DB="${BOT_DB_PATH:-"$SCRIPT_DIR/dados/DB/ESDEATH_AUTH.db"}"
 
 # ── Detecta binário: comp2 (debug nativo) > comp (musl release) > pub ──────
@@ -141,6 +144,66 @@ case "${1:-}" in
         fi
         exit 0
         ;;
+    sync|sincronizar)
+        # Põe o bot de dev na MESMA build que o cliente recebeu.
+        #
+        # Por que existe: o `release.sh` publica e não toca em nada aqui, e o
+        # `comp` custa ~15 min disputando RAM e disco com os bots em produção.
+        # Sem isto o binário local ia ficando pra trás a cada release — medido
+        # em 29/08: repositório na v2.46, arquivo em disco na v2.45 e o processo
+        # rodando um inode que nem existia mais no disco.
+        #
+        # A fonte é o asset da release PÚBLICA, e não o artefato do CI ou uma
+        # compilação daqui: é literalmente o mesmo arquivo que o cliente baixa,
+        # então testar contra ele é testar o que ele tem.
+        command -v gh >/dev/null 2>&1 || { echo "ERRO: precisa do 'gh' autenticado." >&2; exit 1; }
+        PUB_REPO="${PUBLIC_REPO:-Salientekill/ESDEATH-RUST}"
+        TAG="${2:-}"
+        if [ -z "$TAG" ]; then
+            TAG=$(gh release view --repo "$PUB_REPO" --json tagName -q .tagName 2>/dev/null || echo "")
+        fi
+        [ -n "$TAG" ] || { echo "ERRO: não achei release em $PUB_REPO." >&2; exit 1; }
+
+        TMP=$(mktemp -d) || exit 1
+        trap 'rm -rf "$TMP"' EXIT
+        echo "Baixando $TAG de $PUB_REPO..."
+        if ! gh release download "$TAG" --repo "$PUB_REPO" --pattern "$BIN_NAME_PUB" --dir "$TMP" 2>&1; then
+            echo "ERRO: download falhou." >&2; exit 1
+        fi
+        chmod +x "$TMP/$BIN_NAME_PUB"
+
+        # Valida ANTES de substituir: um binário que não executa viraria um bot
+        # que não sobe, e o supervisor ficaria em loop de crash.
+        VER=$("$TMP/$BIN_NAME_PUB" --version 2>&1 | head -1) || {
+            echo "ERRO: o binário baixado não executa aqui." >&2; exit 1; }
+        echo "  $VER"
+
+        mkdir -p "$SCRIPT_DIR/.backups"
+        if [ -f "$DEV_BIN" ]; then
+            ANTES=$("$DEV_BIN" --version 2>&1 | head -1 || echo "?")
+            cp "$DEV_BIN" "$SCRIPT_DIR/.backups/esdeath-bot.$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+            echo "  substituindo: $ANTES"
+        fi
+        mkdir -p "$(dirname "$DEV_BIN")"
+        # `mv` e não `cp`: escrever por cima de um binário EM EXECUÇÃO devolve
+        # ETXTBSY. O rename troca o nome, o processo antigo segue no inode
+        # antigo (é o `(deleted)` que aparece em /proc/<pid>/exe) e some quando
+        # ele sair.
+        mv -f "$TMP/$BIN_NAME_PUB" "$DEV_BIN" || { echo "ERRO: não deu pra instalar." >&2; exit 1; }
+        chmod +x "$DEV_BIN"
+
+        # O `start.sh` é supervisor: reexecuta o CAMINHO a cada volta do loop.
+        # Derrubar só o processo do BOT faz ele subir já na versão nova, sem
+        # matar o supervisor nem exigir que alguém rode o start de novo.
+        if pgrep -f "$DEV_BIN" >/dev/null 2>&1; then
+            echo "  reiniciando o bot (o supervisor sobe a versão nova)..."
+            pkill -f "$DEV_BIN" 2>/dev/null || true
+        else
+            echo "  bot não está rodando — sobe na próxima vez que você iniciar."
+        fi
+        echo "Pronto: $TAG"
+        exit 0
+        ;;
     rollback)
         BACKUP_DIR="$SCRIPT_DIR/.backups"
         BACKUP=$(ls -t "$BACKUP_DIR"/esdeath-bot.* 2>/dev/null | head -1)
@@ -205,7 +268,8 @@ case "${1:-}" in
         ;;
     *)
         echo "Comando desconhecido: $1"
-        echo "Uso: bash start.sh [comp|comp2|recomp|dhat|ram|clean|update|rollback|debug|debug2|reset]"
+        echo "Uso: bash start.sh [comp|comp2|recomp|sync|dhat|ram|clean|update|rollback|debug|debug2|reset]"
+        echo "     sync [tag] = baixa a release publicada e reinicia o bot nela"
         echo "     ram [dhat|jemalloc] = builda o profiler e roda (default jemalloc)"
         exit 1
         ;;
