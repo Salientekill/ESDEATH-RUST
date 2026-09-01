@@ -1,5 +1,0 @@
-{
-  "titulo": "✅ Teste de render",
-  "trusted_sources": ["nixel.dev"],
-  "html": "<style>body{margin:0;background:transparent;font-family:Arial;color:#eee}#b{margin:24px auto;display:block;padding:16px 22px;font-size:20px;border:1px solid #4a90d9;border-radius:12px;background:rgba(74,144,217,.25);color:#fff}</style><body><div style=\"text-align:center;padding:20px\"><div style=\"font-size:22px;font-weight:bold\">🎮 Render OK</div><div style=\"font-size:12px;color:#aaa;margin-top:6px\">Se você vê o botão e ele conta, o card renderizou.</div><button id=\"b\">Cliques: 0</button></div><script>var n=0,b=document.getElementById('b');b.addEventListener('pointerdown',function(e){e.preventDefault();n++;b.textContent='Cliques: '+n});</script></body>"
-}
