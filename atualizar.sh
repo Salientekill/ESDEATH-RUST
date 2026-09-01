@@ -16,6 +16,36 @@ BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
 mesclar_dados() {
     [ -d "$TMPDIR/pub/dados/org/json" ] || return 0
     mkdir -p "$SCRIPT_DIR/dados/org/json"
+    # Jogos do !jogos: SOBRESCREVE os nossos, preserva os do cliente.
+    #
+    # Antes era add-only e isso congelava o catálogo: quem já tinha os arquivos
+    # nunca recebia jogo corrigido — a mesma armadilha que o merge de configs
+    # abaixo resolve, reintroduzida aqui. Como o cliente não edita jogo, o certo
+    # é copiar por cima.
+    #
+    # Para saber o que é nosso sem manifesto, usamos a marca "HIURA" que o motor
+    # escreve no cabeçalho de todo jogo que geramos. Arquivo com a marca e fora
+    # do catálogo novo é jogo nosso aposentado -> some. Arquivo sem a marca é do
+    # cliente -> fica. NÃO remover essa marca do motor.
+    if [ -d "$TMPDIR/pub/dados/org/json/jogos" ]; then
+        mkdir -p "$SCRIPT_DIR/dados/org/json/jogos"
+        for f in "$SCRIPT_DIR/dados/org/json/jogos/"*.json; do
+            [ -e "$f" ] || continue
+            nome="$(basename "$f")"
+            if [ ! -e "$TMPDIR/pub/dados/org/json/jogos/$nome" ]; then
+                # `if` e não `&&`: sob `set -e` uma lista AND que termina em
+                # falso derruba o script inteiro.
+                if grep -q "HIURA" "$f" 2>/dev/null; then
+                    rm -f "$f"
+                    echo "   - jogo aposentado: $nome"
+                fi
+            fi
+        done
+        for f in "$TMPDIR/pub/dados/org/json/jogos/"*.json; do
+            [ -e "$f" ] || continue
+            cp -f "$f" "$SCRIPT_DIR/dados/org/json/jogos/" || echo "   ! jogo $(basename "$f")"
+        done
+    fi
     # `timeout` porque binário anterior à flag NÃO falha com um argumento que
     # não conhece — ele ignora e sobe o bot. Na distribuição normal script e
     # binário chegam juntos e isso não acontece, mas o custo do cinto é uma
