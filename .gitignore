@@ -10,6 +10,10 @@ dados/chave.txt
 dados/bot_config.json
 dados/DB/
 dados/org/json/credenciais.json
+# Mario: emulador de NES com o cartucho embutido. O catalogo de jogos e do dono,
+# nao do cliente — uma linha aqui e o que impede o `publicar.sh` de mandar o
+# cartucho junto. Ver tools/jogos/externos/mario/montar.py.
+dados/org/json/jogos/mario.json
 dados/DB/ESDEATH_AUTH.db*
 
 # Runtime
