@@ -79,6 +79,26 @@ case "${1:-}" in
         if [ $BUILD_STATUS -eq 0 ] && command -v cargo-sweep >/dev/null 2>&1; then
             cargo sweep --time 3 "$SCRIPT_DIR" >/dev/null 2>&1 || true
         fi
+        # ★★ A pagina do RPG sai DESTA fonte, e o jogo abre nela.
+        #
+        # Desde que a CSP do WhatsApp passou a cortar `connect-src 'none'`, o
+        # card dentro da bolha nao fala com a API — medido no aparelho, com a
+        # `!sonda`. O `!rpg` abre `https://sungbot.vip/rpg/`, que e o MESMO HTML
+        # servido pela API. Se ele nao for republicado junto com o binario, o
+        # jogador abre uma versao velha e nada avisa.
+        #
+        # Nao derruba o build: sem `VPS_SENHA` (ou sem chave SSH) ele so avisa.
+        # Um build que falha porque a publicacao falhou seria pior que o
+        # esquecimento que ele evita.
+        if [ $BUILD_STATUS -eq 0 ] && [ -f "$SCRIPT_DIR/tools/rpg/publicar.py" ]; then
+            echo "→ publicando a pagina do RPG…"
+            if python3 "$SCRIPT_DIR/tools/rpg/publicar.py" --enviar; then
+                echo "✓ pagina do RPG publicada"
+            else
+                echo "⚠ pagina do RPG NAO publicada — o jogo vai abrir a versao anterior."
+                echo "  rode:  VPS_SENHA=... python3 tools/rpg/publicar.py --enviar"
+            fi
+        fi
         exit $BUILD_STATUS
         ;;
     comp2)
