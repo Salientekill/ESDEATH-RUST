@@ -96,7 +96,8 @@ case "${1:-}" in
                 echo "✓ pagina do RPG publicada"
             else
                 echo "⚠ pagina do RPG NAO publicada — o jogo vai abrir a versao anterior."
-                echo "  rode:  VPS_SENHA=... python3 tools/rpg/publicar.py --enviar"
+                echo "  chave SSH fora da VPS? rode uma vez:  ssh-copy-id -i ~/.ssh/id_ed25519.pub root@161.97.151.245"
+                echo "  ou:  VPS_SENHA=... python3 tools/rpg/publicar.py --enviar"
             fi
         fi
         exit $BUILD_STATUS
