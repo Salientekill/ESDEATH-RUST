@@ -14,6 +14,17 @@ BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
 # valor do cliente. `mesclar_dados` cai no comportamento antigo se o binário
 # for velho demais pra conhecer a flag.
 mesclar_dados() {
+    # Mídia: só entra o que falta — o cliente pode ter trocado um áudio ou uma
+    # figurinha pelo dele, e o arquivo não tem como ser mesclado.
+    for d in audios figs; do
+        [ -d "$TMPDIR/pub/dados/midias/$d" ] || continue
+        mkdir -p "$SCRIPT_DIR/dados/midias/$d"
+        for f in "$TMPDIR/pub/dados/midias/$d/"*; do
+            [ -e "$f" ] || continue
+            dest="$SCRIPT_DIR/dados/midias/$d/$(basename "$f")"
+            [ -e "$dest" ] || cp "$f" "$dest" || echo "   ! mídia $(basename "$f")"
+        done
+    done
     [ -d "$TMPDIR/pub/dados/org/json" ] || return 0
     mkdir -p "$SCRIPT_DIR/dados/org/json"
     # Jogos do !jogos: SOBRESCREVE os nossos, preserva os do cliente.
