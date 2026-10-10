@@ -143,7 +143,9 @@ if [ "$MODE" = "auto" ]; then
         ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
     fi
 
-    TMPDIR=$(mktemp -d)
+    # Na pasta do bot, não no /tmp: em painel (Pterodactyl) o /tmp do container
+    # é pequeno ou fora da cota, e o clone do repo público estoura (os error 28).
+    TMPDIR=$(mktemp -d "$SCRIPT_DIR/.atualizar.XXXXXX")
     # shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está
     # na linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável
     # sumisse no caminho.

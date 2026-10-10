@@ -20,3 +20,7 @@ dados/DB/ESDEATH_AUTH.db*
 .bot.pid
 logs/*.log
 .backups/
+
+# Temporários do bot (helpers::dir_tmp) e do atualizar.sh — fora do /tmp do sistema
+/tmp/
+/.atualizar.*/
