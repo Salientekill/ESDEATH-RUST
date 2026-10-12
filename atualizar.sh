@@ -5,6 +5,59 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
 BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
 
+# Manifesto assinado da release (esdeath/manifesto + .sig): versão e sha256 de
+# TUDO o que veio no clone. Quem confere é o binário que está rodando AGORA: a
+# chave pública mora nele, e nada do clone merece confiança ainda.
+#
+# A decisão de conferir vem do `.version` instalado, não de executar o binário:
+# a partir da 3.31 qualquer falha (binário ausente, flag desconhecida, timeout)
+# CANCELA a atualização. Abaixo da 3.31 o binário não conhece --verificar e,
+# pior, trata flag desconhecida subindo o bot — então nem é chamado.
+VERSAO_COM_VERIFICADOR="3.31"
+instalada_confere() {
+    local v
+    v=$(printf '%s' "${CURRENT:-}" | sed 's/^v//' | grep -oE '^[0-9]+\.[0-9]+' || true)
+    [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$VERSAO_COM_VERIFICADOR" "$v" | sort -V | head -1)" = "$VERSAO_COM_VERIFICADOR" ]
+}
+conferir_assinatura() {
+    local pasta="$1" t=""
+    if ! instalada_confere; then
+        echo "AVISO: a versão instalada (${CURRENT:-?}) não confere assinatura; seguindo sem conferir."
+        return 0
+    fi
+    command -v timeout >/dev/null 2>&1 && t="timeout 120"
+    if (cd "$SCRIPT_DIR" && $t "$BIN" --verificar "$pasta" "$CURRENT"); then
+        return 0
+    fi
+    echo "ERRO: a versão baixada não passou na conferência da assinatura — atualização cancelada, nada foi trocado."
+    return 1
+}
+
+# A versão nova fica "em teste" até o bot passar 3 min de pé (ele apaga a
+# marca); se cair 3 vezes antes disso, o start.sh volta para `de`. Marca velha
+# de outra troca sai sempre; reinstalar a mesma versão não marca nada (o
+# rollback acusaria como ruim a versão que está rodando).
+marcar_em_teste() {
+    # Recado de rollback de outra troca: o binário que o consumiria pode nem existir mais.
+    rm -f "$SCRIPT_DIR/.backups/em_teste" "$SCRIPT_DIR/.backups/rollback_feito"
+    [ "$CURRENT" != "$NEW" ] || return 0
+    [ -f "$SCRIPT_DIR/.backups/esdeath-bot.$CURRENT" ] || return 0
+    printf 'de=%s\npara=%s\nquedas=0\n' "$CURRENT" "$NEW" > "$SCRIPT_DIR/.backups/em_teste"
+}
+
+# Script novo entra por rename: o bash lê o script aos pedaços, e `cp` por cima
+# faria este atualizar.sh (e o start.sh do supervisor) seguir no arquivo NOVO a
+# partir do byte em que estava.
+instalar_script() {
+    [ -f "$1" ] || return 1
+    cp "$1" "$2.new.$$" && chmod +x "$2.new.$$" && mv "$2.new.$$" "$2"
+}
+
+# Os testes (tests/scripts/atualizacao.sh) carregam só as funções acima.
+if [ "${ESDEATH_SO_FUNCOES:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 # Dados JSON: soma o que falta, sem tocar no que o cliente editou.
 #
 # Antes, o arquivo era copiado só quando NÃO existia — o que preserva as
@@ -164,6 +217,7 @@ if [ "$MODE" = "auto" ]; then
         echo "ERRO: binario nao encontrado no repositorio."
         exit 1
     fi
+    conferir_assinatura "$TMPDIR/pub" || exit 1
 
     # Copia via rename atômico para evitar ETXTBSY em containers
     # (cp direto sobre binário em execução falha em alguns ambientes)
@@ -173,9 +227,9 @@ if [ "$MODE" = "auto" ]; then
     mv "$TMP_BIN" "$BIN"
 
     # Copia scripts atualizados
-    [ -f "$TMPDIR/pub/start.sh" ]     && cp "$TMPDIR/pub/start.sh"     "$SCRIPT_DIR/start.sh"     && chmod +x "$SCRIPT_DIR/start.sh"
-    [ -f "$TMPDIR/pub/atualizar.sh" ] && cp "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" && chmod +x "$SCRIPT_DIR/atualizar.sh"
-    [ -f "$TMPDIR/pub/setup.sh" ]     && cp "$TMPDIR/pub/setup.sh"     "$SCRIPT_DIR/setup.sh"     && chmod +x "$SCRIPT_DIR/setup.sh"
+    instalar_script "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh" || true
+    instalar_script "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" || true
+    instalar_script "$TMPDIR/pub/setup.sh" "$SCRIPT_DIR/setup.sh" || true
 
     [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
         cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
@@ -185,11 +239,14 @@ if [ "$MODE" = "auto" ]; then
     [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 
     NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
+    marcar_em_teste
     echo "Atualizado: $CURRENT -> $NEW"
 
     # Mata só o binário do bot (supervisor continua vivo e relança).
     # Delay pra dar tempo da mensagem ser enviada antes do kill.
-    (sleep 2 && stop_bot_bin_only) &
+    # Sem herdar o stdout: o bot lê a saída deste script até o EOF, e com o
+    # subshell segurando o pipe ele só voltaria depois do próprio SIGTERM.
+    (sleep 2 && stop_bot_bin_only) >/dev/null 2>&1 &
     exit 0
 fi
 
@@ -300,6 +357,7 @@ if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
     echo "ERRO: binario nao encontrado no repositorio."
     exit 1
 fi
+conferir_assinatura "$TMPDIR/pub" || exit 1
 
 # Rename atômico: evita ETXTBSY com binário em uso
 TMP_BIN="${BIN}.new.$$"
@@ -308,9 +366,9 @@ chmod +x "$TMP_BIN"
 mv "$TMP_BIN" "$BIN"
 
 # Scripts e template (best-effort)
-[ -f "$TMPDIR/pub/start.sh" ]     && cp "$TMPDIR/pub/start.sh"     "$SCRIPT_DIR/start.sh"     && chmod +x "$SCRIPT_DIR/start.sh"
-[ -f "$TMPDIR/pub/atualizar.sh" ] && cp "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" && chmod +x "$SCRIPT_DIR/atualizar.sh"
-[ -f "$TMPDIR/pub/setup.sh" ]     && cp "$TMPDIR/pub/setup.sh"     "$SCRIPT_DIR/setup.sh"     && chmod +x "$SCRIPT_DIR/setup.sh"
+instalar_script "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh" || true
+instalar_script "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" || true
+instalar_script "$TMPDIR/pub/setup.sh" "$SCRIPT_DIR/setup.sh" || true
 [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
     cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
 
@@ -319,6 +377,7 @@ mesclar_dados
 [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
 
 NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
+marcar_em_teste
 echo ""
 echo "Atualizado: $CURRENT -> $NEW"
 

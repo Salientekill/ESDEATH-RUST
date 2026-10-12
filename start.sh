@@ -29,6 +29,71 @@ else
     BOT_BIN=""
 fi
 
+# ── Rollback automático e freio de laço (atualização automática) ─────────────
+# O `atualizar.sh` deixa `.backups/em_teste` (de/para/quedas) ao trocar o
+# binário. Enquanto a marca existir, TODA saída da versão nova conta (até a de
+# código 0: um binário que sai limpo no boot também está quebrado); na 3ª, ela é
+# dada como ruim: volta o binário anterior, a versão entra em `.backups/ruins`
+# (a atualização automática nunca a reinstala) e `.backups/rollback_feito` fica
+# para o bot avisar o dono. O bot apaga `em_teste` depois de 3 min de pé, sem
+# depender de conectar ao WhatsApp.
+BACKUPS="$SCRIPT_DIR/.backups"
+EM_TESTE="$BACKUPS/em_teste"
+QUEDAS_PARA_VOLTAR=3
+
+campo_em_teste() { sed -n "s/^$1=//p" "$EM_TESTE" 2>/dev/null | head -1 | tr -d '\r'; }
+
+# $1 = versão que estava rodando (o `.version` lido ANTES de lançar): a saída
+# do binário velho na própria troca não pode contar contra o novo. Só mexe no
+# binário publicado (PUB_BIN): build local do dono nunca é trocado por aqui.
+voltar_versao_se_preciso() {
+    local lancada="$1" de para quedas antigo
+    [ -f "$EM_TESTE" ] || return 0
+    de=$(campo_em_teste de); para=$(campo_em_teste para); quedas=$(campo_em_teste quedas)
+    [ -n "$para" ] && [ "$lancada" = "$para" ] || return 0
+    case "$quedas" in ''|*[!0-9]*) quedas=0 ;; esac
+    quedas=$(( quedas + 1 ))
+    if [ "$quedas" -lt "$QUEDAS_PARA_VOLTAR" ]; then
+        printf 'de=%s\npara=%s\nquedas=%s\n' "$de" "$para" "$quedas" > "$EM_TESTE"
+        return 0
+    fi
+    antigo="$BACKUPS/esdeath-bot.$de"
+    rm -f "$EM_TESTE"
+    if [ "$BOT_BIN" != "$PUB_BIN" ] || [ ! -f "$antigo" ]; then
+        echo -e "\e[91m⚠️  A versão $para caiu $quedas vezes ao iniciar e não há binário anterior para voltar.\e[0m"
+        return 0
+    fi
+    if ! { cp "$antigo" "$PUB_BIN.volta.$$" && chmod +x "$PUB_BIN.volta.$$" && mv "$PUB_BIN.volta.$$" "$PUB_BIN"; }; then
+        rm -f "$PUB_BIN.volta.$$"
+        echo -e "\e[91m⚠️  A versão $para caiu $quedas vezes, mas não consegui voltar o binário da $de.\e[0m"
+        return 0
+    fi
+    echo "$de" > "$SCRIPT_DIR/.version"
+    echo "$para" >> "$BACKUPS/ruins"
+    printf 'de=%s\npara=%s\nts=%s\n' "$para" "$de" "$(date +%s)" > "$BACKUPS/rollback_feito"
+    echo -e "\e[93m↩️  A versão $para caiu $quedas vezes ao iniciar: voltei para $de.\e[0m"
+}
+
+# Freio geral: 5 saídas em 5 min → 60 s entre tentativas, em vez de $1. Vale
+# para toda volta do laço (saída 0 em laço também é laço). Deixa a espera em
+# $ESPERA: chamar com `$(...)` rodaria num subshell e a lista nunca cresceria.
+QUEDAS_RECENTES=""
+ESPERA=1
+espera_depois_da_queda() {
+    local base="${1:-1}" agora t novas="" n=0
+    agora=$(date +%s)
+    for t in $QUEDAS_RECENTES $agora; do
+        if [ $(( agora - t )) -lt 300 ]; then novas="$novas $t"; n=$(( n + 1 )); fi
+    done
+    QUEDAS_RECENTES="$novas"
+    if [ "$n" -ge 5 ]; then ESPERA=60; else ESPERA="$base"; fi
+}
+
+# Os testes (tests/scripts/atualizacao.sh) carregam só as funções acima.
+if [ "${ESDEATH_SO_FUNCOES:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 # ── Build MUSL via cargo-zigbuild ──────────────────────────────────────────
 # O comando !akinator usa o crate `wreq` (BoringSSL) para passar o fingerprint
 # TLS do Cloudflare do Akinator. BoringSSL é C++ e não cross-compila pro target
@@ -454,6 +519,7 @@ echo -e "\e[95m═════════════════════�
 
 while [ "$SHOULD_EXIT" = "0" ]; do
     echo -e "\e[32m🚀 ESDEATH BOT ESTÁ INICIANDO AGUARDE...\e[0m"
+    LANCADA=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || true)
     # Stdin do bot: /dev/tty quando interativo (pair code), /dev/null em
     # ambientes sem tty (container, systemd). Sem o fallback, processos em
     # background que tentam ler de /dev/tty recebem SIGTTIN e ficam parados —
@@ -479,11 +545,15 @@ while [ "$SHOULD_EXIT" = "0" ]; do
         # O caso 0 cobre quando o bot trapou SIGINT e fez shutdown gracioso —
         # cenário em que a trap do supervisor não disparou (Ctrl+C foi
         # consumido só pelo bot) mas queremos reiniciar imediatamente.
+        voltar_versao_se_preciso "$LANCADA"
+        espera_depois_da_queda 0.3
         echo -e "\e[93m♻️  Bot encerrou (code=$EXIT_CODE). Reiniciando...\e[0m"
-        sleep 0.3
+        sleep "$ESPERA"
     else
-        echo -e "\e[91m⚠️  Bot crashou (code=$EXIT_CODE). Reiniciando em 1s...\e[0m"
-        sleep 1
+        voltar_versao_se_preciso "$LANCADA"
+        espera_depois_da_queda 1
+        echo -e "\e[91m⚠️  Bot crashou (code=$EXIT_CODE). Reiniciando em ${ESPERA}s...\e[0m"
+        sleep "$ESPERA"
     fi
 done
 
