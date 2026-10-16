@@ -397,6 +397,18 @@ if [ -z "$BOT_BIN" ]; then
     exit 1
 fi
 
+# Binário sem permissão de execução (code=126): acontece quando o arquivo é enviado
+# ou extraído pelo gerenciador de arquivos do painel, que grava sem o bit +x.
+if [ ! -x "$BOT_BIN" ]; then
+    chmod +x "$BOT_BIN" 2>/dev/null || true
+    if [ ! -x "$BOT_BIN" ]; then
+        echo "ERRO: $BOT_BIN está sem permissão de execução e não deu para corrigir."
+        echo "No gerenciador de arquivos do painel, abra as permissões dele e marque 755."
+        exit 1
+    fi
+    echo "Permissão de execução do bot restaurada."
+fi
+
 # Mata TODAS as instancias anteriores deste bot
 # 1) Via PID file — valida que é realmente um processo do bot antes de matar.
 #    Em containers (Pterodactyl) PIDs resetam e podem colidir com o proprio
