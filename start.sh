@@ -552,6 +552,20 @@ while [ "$SHOULD_EXIT" = "0" ]; do
     if [ "$TRAP_RESTART" = "1" ]; then
         TRAP_RESTART=0
         echo -e "\e[93m♻️  Reiniciando após Ctrl+C...\e[0m"
+    elif [ "$EXIT_CODE" = "75" ]; then
+        # Outra cópia do bot com o mesmo número (ou nesta pasta). Religar na hora
+        # derrubava a outra, que derrubava esta: o vai-e-volta leva a ban.
+        echo -e "\e[91m⚠️  Outra cópia do bot está usando este número. Desligue-a. Tentando de novo em 5 min...\e[0m"
+        sleep 300
+    elif [ "$EXIT_CODE" = "76" ]; then
+        # Ban temporário: conectar durante o ban só piora. Espera o prazo do servidor.
+        ESPERA_BAN=$(cat dados/.espera_ban 2>/dev/null || echo 3600)
+        rm -f dados/.espera_ban
+        case "$ESPERA_BAN" in ''|*[!0-9]*) ESPERA_BAN=3600 ;; esac
+        [ "$ESPERA_BAN" -gt 86400 ] && ESPERA_BAN=86400
+        [ "$ESPERA_BAN" -lt 60 ] && ESPERA_BAN=60
+        echo -e "\e[91m⛔ Ban temporário. Religando em $((ESPERA_BAN / 60)) min...\e[0m"
+        sleep "$ESPERA_BAN"
     elif [ "$EXIT_CODE" = "0" ] || [ "$EXIT_CODE" = "130" ]; then
         # Exit clean (0) ou via SIGINT do próprio bot (130): restart curto.
         # O caso 0 cobre quando o bot trapou SIGINT e fez shutdown gracioso —
