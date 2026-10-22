@@ -53,10 +53,53 @@ instalar_script() {
     cp "$1" "$2.new.$$" && chmod +x "$2.new.$$" && mv "$2.new.$$" "$2"
 }
 
-# Os testes (tests/scripts/atualizacao.sh) carregam só as funções acima.
-if [ "${ESDEATH_SO_FUNCOES:-0}" = "1" ]; then
-    return 0 2>/dev/null || exit 0
-fi
+# Troca por rename: `cp` por cima do binário em uso dá "Text file busy" em
+# alguns ambientes (containers).
+trocar_binario() {
+    cp "$1" "$BIN.new.$$" && chmod +x "$BIN.new.$$" && mv -f "$BIN.new.$$" "$BIN" && return 0
+    rm -f "$BIN.new.$$"
+    return 1
+}
+
+# Na pasta do bot, não no /tmp: em painel (Pterodactyl) o /tmp do container
+# é pequeno ou fora da cota, e o clone do repo público estoura (os error 28).
+# Aspas no trap: com espaço no caminho, `rm -rf $TMPDIR` apagaria OUTRA pasta.
+criar_temporario() {
+    # Sobra de atualização morta no meio (kill -9 não roda o trap): ~30 MB cada.
+    find "$SCRIPT_DIR" -maxdepth 1 -name '.atualizar.??????' -type d -mmin +60 \
+        -exec rm -rf -- {} + 2>/dev/null || true
+    TMPDIR=$(mktemp -d "$SCRIPT_DIR/.atualizar.XXXXXX") || return 1
+    trap 'rm -rf -- "$TMPDIR"' EXIT
+}
+
+# Uma atualização por vez: o bot (!atualizarbot, painel, automática) e alguém
+# no terminal trocariam binário e .version ao mesmo tempo. Sem `flock` (imagem
+# mínima) segue sem trava, como antes.
+pegar_trava() {
+    command -v flock >/dev/null 2>&1 || return 0
+    exec 9>"$SCRIPT_DIR/.atualizar.trava"
+    flock -n 9 && return 0
+    echo "ERRO: já há uma atualização em andamento; tente de novo em alguns minutos."
+    return 1
+}
+
+# Em painel (Bronxys etc.) o .bot.pid sobrevive ao reinício do container com
+# PID morto ou reciclado por outro processo; o próximo start.sh mataria esse.
+limpar_pid_velho() {
+    [ -f "$PID_FILE" ] || return 0
+    local pid cmd
+    pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+        echo "Limpando .bot.pid stale (PID $pid nao existe)."
+        rm -f "$PID_FILE"
+        return 0
+    fi
+    cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)
+    if ! echo "$cmd" | grep -qE "esdeath-bot|start\.sh"; then
+        echo "Limpando .bot.pid stale (PID $pid nao e do bot: $cmd)."
+        rm -f "$PID_FILE"
+    fi
+}
 
 # Dados JSON: soma o que falta, sem tocar no que o cliente editou.
 #
@@ -131,6 +174,70 @@ mesclar_dados() {
     # antiga registrada — pior que ficar sem uma brincadeira.
     return 0
 }
+# Backup, download, conferência e troca — o caminho único dos modos `auto` e
+# `update` (eram duas cópias, e a correção do temporário entrou só numa).
+instalar_versao() {
+    limpar_pid_velho
+    if [ -f "$BIN" ]; then
+        mkdir -p "$SCRIPT_DIR/.backups"
+        # Explícito: chamada como `instalar_versao || exit`, a função roda sem
+        # `set -e`, e trocar sem backup tiraria o caminho de volta.
+        cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}" \
+            || { echo "ERRO: não consegui guardar o binário atual (disco cheio?)."; return 1; }
+        ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
+    fi
+    criar_temporario || { echo "ERRO: não consegui criar a pasta temporária em $SCRIPT_DIR."; return 1; }
+    echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
+    local ramo=()
+    [ -n "$TARGET_TAG" ] && ramo=(--branch "$TARGET_TAG")
+    git clone --depth 1 ${ramo[@]+"${ramo[@]}"} "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
+        || { echo "ERRO: falha ao baixar${TARGET_TAG:+ a tag $TARGET_TAG} (git instalado e rede ok?)."; return 1; }
+    if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
+        echo "ERRO: binario nao encontrado no repositorio."
+        return 1
+    fi
+    conferir_assinatura "$TMPDIR/pub" || return 1
+    trocar_binario "$TMPDIR/pub/esdeath/esdeath-bot" \
+        || { echo "ERRO: não consegui trocar o binário (disco cheio?)."; return 1; }
+
+    # Scripts e template (best-effort)
+    instalar_script "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh" || true
+    instalar_script "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" || true
+    instalar_script "$TMPDIR/pub/setup.sh" "$SCRIPT_DIR/setup.sh" || true
+    if [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ]; then
+        cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
+    fi
+
+    mesclar_dados
+
+    [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
+    NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
+    marcar_em_teste
+    echo "Atualizado: $CURRENT -> $NEW"
+}
+
+# A versão abandonada vira "ruim": sem isso a atualização automática a
+# reinstalava na hora seguinte (o rollback automático do start.sh já marcava).
+voltar_para() {
+    local alvo="$1" backup="$SCRIPT_DIR/.backups/esdeath-bot.$1"
+    if [ ! -f "$backup" ]; then
+        echo "Backup '$alvo' não encontrado."
+        return 1
+    fi
+    trocar_binario "$backup" || { echo "ERRO: não consegui trocar o binário."; return 1; }
+    echo "$alvo" > "$SCRIPT_DIR/.version"
+    rm -f "$SCRIPT_DIR/.backups/em_teste"
+    if [ "$CURRENT" != "$alvo" ] && [ "$CURRENT" != "nenhuma" ] \
+        && ! grep -qxF "$CURRENT" "$SCRIPT_DIR/.backups/ruins" 2>/dev/null; then
+        echo "$CURRENT" >> "$SCRIPT_DIR/.backups/ruins"
+    fi
+}
+
+# Os testes (tests/scripts/atualizacao.sh) carregam só as funções acima.
+if [ "${ESDEATH_SO_FUNCOES:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 PUBLIC_REPO="https://github.com/Salientekill/ESDEATH-RUST.git"
 MODE="${1:-update}"
 # Tag alvo (ex: v1.138) passada pelo gate de versão do bot. Vazio = main (latest).
@@ -175,78 +282,14 @@ stop_bot_bin_only() {
 if [ "$MODE" = "auto" ]; then
     echo "=== ESDEATH BOT — Atualizacao automatica ==="
     echo "Versao atual: $CURRENT"
-
-    # Remove .bot.pid stale (mesma motivacao do modo update — ver abaixo).
-    if [ -f "$PID_FILE" ]; then
-        OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
-        if [ -z "$OLD_PID" ] || ! kill -0 "$OLD_PID" 2>/dev/null; then
-            rm -f "$PID_FILE"
-        else
-            OLD_CMD=$(cat "/proc/$OLD_PID/cmdline" 2>/dev/null | tr '\0' ' ')
-            if ! echo "$OLD_CMD" | grep -qE "esdeath-bot|start\.sh"; then
-                rm -f "$PID_FILE"
-            fi
-        fi
-    fi
-
-    # Backup do binário atual
-    if [ -f "$BIN" ]; then
-        mkdir -p "$SCRIPT_DIR/.backups"
-        cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}"
-        ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
-    fi
-
-    # Na pasta do bot, não no /tmp: em painel (Pterodactyl) o /tmp do container
-    # é pequeno ou fora da cota, e o clone do repo público estoura (os error 28).
-    TMPDIR=$(mktemp -d "$SCRIPT_DIR/.atualizar.XXXXXX")
-    # shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está
-    # na linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável
-    # sumisse no caminho.
-    trap "rm -rf $TMPDIR" EXIT
-
-    echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
-    if [ -n "$TARGET_TAG" ]; then
-        git clone --depth 1 --branch "$TARGET_TAG" "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
-            || { echo "ERRO: falha ao clonar a tag $TARGET_TAG."; exit 1; }
-    else
-        git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
-            || { echo "ERRO: falha ao clonar repositorio."; exit 1; }
-    fi
-
-    if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
-        echo "ERRO: binario nao encontrado no repositorio."
-        exit 1
-    fi
-    conferir_assinatura "$TMPDIR/pub" || exit 1
-
-    # Copia via rename atômico para evitar ETXTBSY em containers
-    # (cp direto sobre binário em execução falha em alguns ambientes)
-    TMP_BIN="${BIN}.new.$$"
-    cp "$TMPDIR/pub/esdeath/esdeath-bot" "$TMP_BIN"
-    chmod +x "$TMP_BIN"
-    mv "$TMP_BIN" "$BIN"
-
-    # Copia scripts atualizados
-    instalar_script "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh" || true
-    instalar_script "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" || true
-    instalar_script "$TMPDIR/pub/setup.sh" "$SCRIPT_DIR/setup.sh" || true
-
-    [ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
-        cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
-
-    mesclar_dados
-
-    [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
-
-    NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
-    marcar_em_teste
-    echo "Atualizado: $CURRENT -> $NEW"
+    pegar_trava || exit 1
+    instalar_versao || exit 1
 
     # Mata só o binário do bot (supervisor continua vivo e relança).
     # Delay pra dar tempo da mensagem ser enviada antes do kill.
     # Sem herdar o stdout: o bot lê a saída deste script até o EOF, e com o
     # subshell segurando o pipe ele só voltaria depois do próprio SIGTERM.
-    (sleep 2 && stop_bot_bin_only) >/dev/null 2>&1 &
+    (sleep 2 && stop_bot_bin_only) >/dev/null 2>&1 9>&- &
     exit 0
 fi
 
@@ -275,9 +318,7 @@ if [ "$MODE" = "rollback" ]; then
         echo "Cancelado."
         exit 0
     fi
-
-    BACKUP="$BACKUP_DIR/esdeath-bot.${TARGET}"
-    if [ ! -f "$BACKUP" ]; then
+    if [ ! -f "$BACKUP_DIR/esdeath-bot.${TARGET}" ]; then
         echo "Backup '$TARGET' não encontrado."
         exit 1
     fi
@@ -289,14 +330,16 @@ if [ "$MODE" = "rollback" ]; then
         exit 0
     fi
 
+    pegar_trava || exit 1
     stop_bot
-
-    cp "$BACKUP" "$BIN"
-    chmod +x "$BIN"
-    echo "$TARGET" > "$SCRIPT_DIR/.version"
+    voltar_para "$TARGET" || exit 1
 
     echo ""
     echo "Rollback para $TARGET concluído!"
+    if [ "$CURRENT" != "$TARGET" ] && [ "$CURRENT" != "nenhuma" ]; then
+        echo "A atualização automática não vai reinstalar a $CURRENT."
+        echo "Para voltar a ela: atualizarbot force no privado do bot."
+    fi
     echo "Execute: bash start.sh"
     exit 0
 fi
@@ -313,73 +356,9 @@ fi
 # ═══════════════════════════════════════════════════════════
 echo "=== ESDEATH BOT — Atualizador ==="
 echo "Versão atual: $CURRENT"
-
-# Remove .bot.pid stale: em panéis tipo Bronxys, ao reiniciar o container o
-# arquivo persiste com PID inválido (processo antigo já morreu). Sem essa
-# limpeza, o próximo `start.sh` pode tentar matar um PID reciclado por outro
-# processo (ex: o próprio supervisor do panel) e o bot não sobe.
-if [ -f "$PID_FILE" ]; then
-    OLD_PID=$(cat "$PID_FILE" 2>/dev/null || echo "")
-    if [ -z "$OLD_PID" ] || ! kill -0 "$OLD_PID" 2>/dev/null; then
-        echo "Limpando .bot.pid stale (PID $OLD_PID nao existe)."
-        rm -f "$PID_FILE"
-    else
-        OLD_CMD=$(cat "/proc/$OLD_PID/cmdline" 2>/dev/null | tr '\0' ' ')
-        if ! echo "$OLD_CMD" | grep -qE "esdeath-bot|start\.sh"; then
-            echo "Limpando .bot.pid stale (PID $OLD_PID nao e do bot: $OLD_CMD)."
-            rm -f "$PID_FILE"
-        fi
-    fi
-fi
-
-# Backup do binário atual
-if [ -f "$BIN" ]; then
-    mkdir -p "$SCRIPT_DIR/.backups"
-    cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}"
-    ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
-fi
-
-echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
-TMPDIR=$(mktemp -d)
-# shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está na
-# linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável sumisse.
-trap "rm -rf $TMPDIR" EXIT
-
-if [ -n "$TARGET_TAG" ]; then
-    git clone --depth 1 --branch "$TARGET_TAG" "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
-        || { echo "ERRO: falha ao clonar a tag $TARGET_TAG (git instalado e rede ok?)."; exit 1; }
-else
-    git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
-        || { echo "ERRO: falha ao clonar repositorio (git instalado e rede ok?)."; exit 1; }
-fi
-
-if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
-    echo "ERRO: binario nao encontrado no repositorio."
-    exit 1
-fi
-conferir_assinatura "$TMPDIR/pub" || exit 1
-
-# Rename atômico: evita ETXTBSY com binário em uso
-TMP_BIN="${BIN}.new.$$"
-cp "$TMPDIR/pub/esdeath/esdeath-bot" "$TMP_BIN"
-chmod +x "$TMP_BIN"
-mv "$TMP_BIN" "$BIN"
-
-# Scripts e template (best-effort)
-instalar_script "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh" || true
-instalar_script "$TMPDIR/pub/atualizar.sh" "$SCRIPT_DIR/atualizar.sh" || true
-instalar_script "$TMPDIR/pub/setup.sh" "$SCRIPT_DIR/setup.sh" || true
-[ -f "$TMPDIR/pub/esdeath/bot_config.json.template" ] && \
-    cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template" 2>/dev/null || true
-
-mesclar_dados
-
-[ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
-
-NEW=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "desconhecida")
-marcar_em_teste
+pegar_trava || exit 1
+instalar_versao || exit 1
 echo ""
-echo "Atualizado: $CURRENT -> $NEW"
 
 # Reinicia: mata só o binário (preserva start.sh para relançar).
 if pgrep -f "$BIN" >/dev/null 2>&1 \
