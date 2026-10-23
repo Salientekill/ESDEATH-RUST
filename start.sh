@@ -514,8 +514,10 @@ fi
 
 # jemalloc (build `comp jemalloc`): decay devolve memoria liberada pro SO -> a
 # RSS desce apos picos de midia. Ignorado por build nao-jemalloc. `ram` ja setou
-# o seu (prof), entao `:-` preserva.
+# o seu (prof), entao `:-` preserva. A producao usa o jemalloc com prefixo
+# (desde a 3.45), que so le `_RJEM_MALLOC_CONF`; o `jemalloc-prof` le MALLOC_CONF.
 export MALLOC_CONF="${MALLOC_CONF:-background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000}"
+export _RJEM_MALLOC_CONF="${_RJEM_MALLOC_CONF:-$MALLOC_CONF}"
 
 # PID do supervisor (quem mata este PID encerra tudo via trap TERM)
 echo "$$" > "$PID_FILE"
