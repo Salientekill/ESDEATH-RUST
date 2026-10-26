@@ -2,6 +2,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Os caminhos do bot (dados/, credenciais.json, apikey.enc) são relativos.
+cd "$SCRIPT_DIR" || exit 1
 MUSL_TARGET="x86_64-unknown-linux-musl"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
 # Nome do executável, igual nos dois lados: é como o asset sai da release
@@ -409,6 +411,18 @@ if [ ! -x "$BOT_BIN" ]; then
     echo "Permissão de execução do bot restaurada."
 fi
 
+# Painel e terminal podem rodar o start.sh ao mesmo tempo: a troca de instância
+# (matar a anterior + gravar .bot.pid) é uma seção crítica. A trava só dura até o
+# PID novo estar gravado; o supervisor em si continua sendo substituível. Sem
+# `flock` (imagem mínima) segue sem trava, como o atualizar.sh.
+if command -v flock >/dev/null 2>&1; then
+    exec 8>"$SCRIPT_DIR/.start.trava"
+    if ! flock -w 30 8; then
+        echo "ERRO: outro start.sh está trocando a instância do bot; tente de novo."
+        exit 1
+    fi
+fi
+
 # Mata TODAS as instancias anteriores deste bot
 # 1) Via PID file — valida que é realmente um processo do bot antes de matar.
 #    Em containers (Pterodactyl) PIDs resetam e podem colidir com o proprio
@@ -455,7 +469,10 @@ TRAP_RESTART=0
 stop_bot() {
     if [ -n "$BOT_PID" ] && kill -0 "$BOT_PID" 2>/dev/null; then
         kill -TERM "$BOT_PID" 2>/dev/null || true
-        for _ in $(seq 1 4); do
+        # O shutdown gracioso do bot (disconnect com teto de 5 s no app::run,
+        # flush do log, checkpoint do WAL) leva alguns segundos: 1 s de espera
+        # matava com KILL no meio dele. 15 s é o teto antes do KILL.
+        for _ in $(seq 1 60); do
             kill -0 "$BOT_PID" 2>/dev/null || { wait "$BOT_PID" 2>/dev/null || true; return 0; }
             sleep 0.25
         done
@@ -489,7 +506,19 @@ on_sigtstp() {
 
 on_sigterm() {
     SHOULD_EXIT=1
+    [ -n "$DORMIR_PID" ] && kill "$DORMIR_PID" 2>/dev/null
     stop_bot
+}
+
+# `sleep` em primeiro plano segura a trap até terminar (até 1 h no ban): em
+# segundo plano com `wait`, o bash trata o sinal na hora.
+DORMIR_PID=""
+dormir() {
+    sleep "$1" &
+    DORMIR_PID=$!
+    wait "$DORMIR_PID" 2>/dev/null
+    kill "$DORMIR_PID" 2>/dev/null
+    DORMIR_PID=""
 }
 
 trap on_sigint  INT
@@ -521,6 +550,7 @@ export _RJEM_MALLOC_CONF="${_RJEM_MALLOC_CONF:-$MALLOC_CONF}"
 
 # PID do supervisor (quem mata este PID encerra tudo via trap TERM)
 echo "$$" > "$PID_FILE"
+exec 8>&-
 
 echo -e "\e[95m══════════════════════════════════════════════════════════════════════════\e[0m"
 echo -e "\e[96m                       🤖 ESDEATH BOT - INICIALIZAÇÃO                          \e[0m"
@@ -558,7 +588,7 @@ while [ "$SHOULD_EXIT" = "0" ]; do
         # Outra cópia do bot com o mesmo número (ou nesta pasta). Religar na hora
         # derrubava a outra, que derrubava esta: o vai-e-volta leva a ban.
         echo -e "\e[91m⚠️  Outra cópia do bot está usando este número. Desligue-a. Tentando de novo em 5 min...\e[0m"
-        sleep 300
+        dormir 300
     elif [ "$EXIT_CODE" = "76" ]; then
         # Ban temporário: conectar durante o ban só piora. Espera o prazo do servidor.
         ESPERA_BAN=$(cat dados/.espera_ban 2>/dev/null || echo 3600)
@@ -567,7 +597,7 @@ while [ "$SHOULD_EXIT" = "0" ]; do
         [ "$ESPERA_BAN" -gt 86400 ] && ESPERA_BAN=86400
         [ "$ESPERA_BAN" -lt 60 ] && ESPERA_BAN=60
         echo -e "\e[91m⛔ Ban temporário. Religando em $((ESPERA_BAN / 60)) min...\e[0m"
-        sleep "$ESPERA_BAN"
+        dormir "$ESPERA_BAN"
     elif [ "$EXIT_CODE" = "0" ] || [ "$EXIT_CODE" = "130" ]; then
         # Exit clean (0) ou via SIGINT do próprio bot (130): restart curto.
         # O caso 0 cobre quando o bot trapou SIGINT e fez shutdown gracioso —
@@ -576,12 +606,12 @@ while [ "$SHOULD_EXIT" = "0" ]; do
         voltar_versao_se_preciso "$LANCADA"
         espera_depois_da_queda 0.3
         echo -e "\e[93m♻️  Bot encerrou (code=$EXIT_CODE). Reiniciando...\e[0m"
-        sleep "$ESPERA"
+        dormir "$ESPERA"
     else
         voltar_versao_se_preciso "$LANCADA"
         espera_depois_da_queda 1
         echo -e "\e[91m⚠️  Bot crashou (code=$EXIT_CODE). Reiniciando em ${ESPERA}s...\e[0m"
-        sleep "$ESPERA"
+        dormir "$ESPERA"
     fi
 done
 

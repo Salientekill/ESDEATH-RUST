@@ -73,13 +73,15 @@ if [ ! -f "$SCRIPT_DIR/esdeath/esdeath-bot" ]; then
     # shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está
     # na linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável
     # sumisse no caminho.
-    trap "rm -rf $TMPDIR" EXIT
+    trap "rm -rf -- $(printf %q "$TMPDIR")" EXIT
     git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet
     # Copia binário e scripts
     mkdir -p "$SCRIPT_DIR/esdeath"
     cp "$TMPDIR/pub/esdeath/esdeath-bot" "$SCRIPT_DIR/esdeath/esdeath-bot"
     cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template"
     chmod +x "$SCRIPT_DIR/esdeath/esdeath-bot"
+    # Sem o `.version`, a 1ª atualização não tem com o que conferir a assinatura.
+    [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
     # Copia scripts da raiz se não existirem
     for f in start.sh atualizar.sh; do
         [ ! -f "$SCRIPT_DIR/$f" ] && cp "$TMPDIR/pub/$f" "$SCRIPT_DIR/$f" && chmod +x "$SCRIPT_DIR/$f"
@@ -134,23 +136,32 @@ else
     BOT_EMOJI="${BOT_EMOJI:-❄️}"
 
     # Gera config a partir do template substituindo os campos
+    # Valores por variável de ambiente: aspas, barras e `|` no nome não quebram
+    # o Python nem o sed.
+    BOT_NAME="$BOT_NAME" BOT_PREFIX="$BOT_PREFIX" BOT_OWNER="$BOT_OWNER" \
+    BOT_EMOJI="$BOT_EMOJI" BOT_TEMPLATE="$TEMPLATE" BOT_CONFIG="$CONFIG" \
     python3 -c "
-import json, sys
-with open('$TEMPLATE', 'r') as f:
+import json, os
+with open(os.environ['BOT_TEMPLATE'], 'r') as f:
     cfg = json.load(f)
-cfg['name'] = '''$BOT_NAME'''
-cfg['prefix'] = '''$BOT_PREFIX'''
-cfg['owner'] = '''$BOT_OWNER'''
-cfg['emoji'] = '''$BOT_EMOJI'''
-with open('$CONFIG', 'w') as f:
+cfg['name'] = os.environ['BOT_NAME']
+cfg['prefix'] = os.environ['BOT_PREFIX']
+cfg['owner'] = os.environ['BOT_OWNER']
+cfg['emoji'] = os.environ['BOT_EMOJI']
+with open(os.environ['BOT_CONFIG'], 'w') as f:
     json.dump(cfg, f, indent=2, ensure_ascii=False)
 " 2>/dev/null || {
-        # Fallback sem python: usa sed
+        # Fallback sem python: sed. Escapa o valor para JSON (\ e ") e depois
+        # para a substituição do sed (\, & e o delimitador |).
         cp "$TEMPLATE" "$CONFIG"
-        sed -i "s|\"name\": \".*\"|\"name\": \"$BOT_NAME\"|" "$CONFIG"
-        sed -i "s|\"prefix\": \".*\"|\"prefix\": \"$BOT_PREFIX\"|" "$CONFIG"
-        sed -i "s|\"owner\": \".*\"|\"owner\": \"$BOT_OWNER\"|" "$CONFIG"
-        sed -i "s|\"emoji\": \".*\"|\"emoji\": \"$BOT_EMOJI\"|" "$CONFIG"
+        sed_val() {
+            printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
+                -e 's/[\\&|]/\\&/g'
+        }
+        sed -i "s|\"name\": \".*\"|\"name\": \"$(sed_val "$BOT_NAME")\"|" "$CONFIG"
+        sed -i "s|\"prefix\": \".*\"|\"prefix\": \"$(sed_val "$BOT_PREFIX")\"|" "$CONFIG"
+        sed -i "s|\"owner\": \".*\"|\"owner\": \"$(sed_val "$BOT_OWNER")\"|" "$CONFIG"
+        sed -i "s|\"emoji\": \".*\"|\"emoji\": \"$(sed_val "$BOT_EMOJI")\"|" "$CONFIG"
     }
 
     echo ""

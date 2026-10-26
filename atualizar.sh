@@ -264,8 +264,13 @@ stop_bot() {
 # Função: mata só os processos do binário do bot, preservando o supervisor.
 # Usado no modo 'auto' (chamado de dentro do próprio bot) para que o
 # start.sh detecte a saída e relance automaticamente com a nova versão.
+# pgrep/pkill -f tratam o argumento como regex: o caminho vai escapado (pasta com
+# `.`, `+` ou `(` casaria com processo alheio).
+re_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
+
 stop_bot_bin_only() {
     for BIN_PATTERN in "$BIN" "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot"; do
+        BIN_PATTERN=$(re_escape "$BIN_PATTERN")
         if pgrep -f "$BIN_PATTERN" >/dev/null 2>&1; then
             echo "Matando binário do bot ($BIN_PATTERN)..."
             pkill -TERM -f "$BIN_PATTERN" 2>/dev/null || true
@@ -361,8 +366,8 @@ instalar_versao || exit 1
 echo ""
 
 # Reinicia: mata só o binário (preserva start.sh para relançar).
-if pgrep -f "$BIN" >/dev/null 2>&1 \
-   || pgrep -f "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot" >/dev/null 2>&1; then
+if pgrep -f "$(re_escape "$BIN")" >/dev/null 2>&1 \
+   || pgrep -f "$(re_escape "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot")" >/dev/null 2>&1; then
     echo "Reiniciando bot (supervisor relança)..."
     stop_bot_bin_only
 else
