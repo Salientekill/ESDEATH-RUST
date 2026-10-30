@@ -275,8 +275,8 @@ case "${1:-}" in
             ANTES_V=$(echo "$ANTES" | awk '{print $NF}')
             [ -n "$ANTES_V" ] || ANTES_V="desconhecida"
             cp "$DEV_BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${ANTES_V}" 2>/dev/null || true
-            # Retém 3, igual ao cliente: são ~24 MB cada.
-            ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 \
+            # Retém só a versão anterior (~24 MB): o container do cliente é pequeno.
+            ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +2 \
                 | xargs rm -f 2>/dev/null || true
             echo "  substituindo: $ANTES"
         fi

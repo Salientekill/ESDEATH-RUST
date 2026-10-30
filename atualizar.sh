@@ -184,7 +184,7 @@ instalar_versao() {
         # `set -e`, e trocar sem backup tiraria o caminho de volta.
         cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}" \
             || { echo "ERRO: não consegui guardar o binário atual (disco cheio?)."; return 1; }
-        ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
+        ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +2 | xargs rm -f 2>/dev/null || true
     fi
     criar_temporario || { echo "ERRO: não consegui criar a pasta temporária em $SCRIPT_DIR."; return 1; }
     echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
