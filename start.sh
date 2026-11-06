@@ -43,6 +43,10 @@ BACKUPS="$SCRIPT_DIR/.backups"
 EM_TESTE="$BACKUPS/em_teste"
 QUEDAS_PARA_VOLTAR=3
 
+# pgrep/pkill -f tratam o argumento como regex: o caminho vai escapado (pasta
+# com `.`, `+` ou `(` casaria com processo alheio). Mesma função do atualizar.sh.
+re_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
+
 campo_em_teste() { sed -n "s/^$1=//p" "$EM_TESTE" 2>/dev/null | head -1 | tr -d '\r'; }
 
 # $1 = versão que estava rodando (o `.version` lido ANTES de lançar): a saída
@@ -291,9 +295,9 @@ case "${1:-}" in
         # O `start.sh` é supervisor: reexecuta o CAMINHO a cada volta do loop.
         # Derrubar só o processo do BOT faz ele subir já na versão nova, sem
         # matar o supervisor nem exigir que alguém rode o start de novo.
-        if pgrep -f "$DEV_BIN" >/dev/null 2>&1; then
+        if pgrep -f "$(re_escape "$DEV_BIN")" >/dev/null 2>&1; then
             echo "  reiniciando o bot (o supervisor sobe a versão nova)..."
-            pkill -f "$DEV_BIN" 2>/dev/null || true
+            pkill -f "$(re_escape "$DEV_BIN")" 2>/dev/null || true
         else
             echo "  bot não está rodando — sobe na próxima vez que você iniciar."
         fi
@@ -326,9 +330,9 @@ case "${1:-}" in
         echo "Revertido para $VERSION ($ALVO)"
         # Sem isto o arquivo volta e o processo continua no que já estava
         # carregado — reverter sem reiniciar não reverte nada.
-        if pgrep -f "$ALVO" >/dev/null 2>&1; then
+        if pgrep -f "$(re_escape "$ALVO")" >/dev/null 2>&1; then
             echo "  reiniciando o bot..."
-            pkill -f "$ALVO" 2>/dev/null || true
+            pkill -f "$(re_escape "$ALVO")" 2>/dev/null || true
         fi
         exit 0
         ;;
@@ -448,6 +452,7 @@ fi
 
 # 2) Fallback: mata qualquer processo com este binario
 for BIN_PATTERN in "$DEV_BIN" "$PUB_BIN" "$PROF_BIN"; do
+    BIN_PATTERN=$(re_escape "$BIN_PATTERN")
     if pgrep -f "$BIN_PATTERN" >/dev/null 2>&1; then
         echo "Fechando instancias orfas ($BIN_PATTERN)..."
         pkill -f "$BIN_PATTERN" 2>/dev/null || true

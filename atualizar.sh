@@ -196,6 +196,19 @@ instalar_versao() {
         echo "ERRO: binario nao encontrado no repositorio."
         return 1
     fi
+    # Não instalar binário cuja versão não corresponde à tag solicitada.
+    if [ -n "$TARGET_TAG" ]; then
+        if [ ! -f "$TMPDIR/pub/.version" ]; then
+            echo "ERRO: release sem .version; nenhuma troca realizada."
+            return 1
+        fi
+        local baixada
+        baixada=$(tr -d '[:space:]' < "$TMPDIR/pub/.version")
+        if [ "$baixada" != "$TARGET_TAG" ] && [ "$baixada" != "${TARGET_TAG#v}" ]; then
+            echo "ERRO: solicitada $TARGET_TAG, mas o repositório informa '$baixada'. Nada foi trocado."
+            return 1
+        fi
+    fi
     conferir_assinatura "$TMPDIR/pub" || return 1
     trocar_binario "$TMPDIR/pub/esdeath/esdeath-bot" \
         || { echo "ERRO: não consegui trocar o binário (disco cheio?)."; return 1; }
@@ -220,17 +233,46 @@ instalar_versao() {
 # reinstalava na hora seguinte (o rollback automático do start.sh já marcava).
 voltar_para() {
     local alvo="$1" backup="$SCRIPT_DIR/.backups/esdeath-bot.$1"
-    if [ ! -f "$backup" ]; then
-        echo "Backup '$alvo' não encontrado."
+    local salvaguarda="$SCRIPT_DIR/.backups/.rollback-anterior.$$"
+    local versao_tmp="$SCRIPT_DIR/.version.rollback.$$"
+    if [ ! -s "$backup" ]; then
+        echo "Backup '$alvo' não encontrado ou vazio."
         return 1
     fi
-    trocar_binario "$backup" || { echo "ERRO: não consegui trocar o binário."; return 1; }
-    echo "$alvo" > "$SCRIPT_DIR/.version"
+    if [ ! -f "$BIN" ]; then
+        echo "ERRO: binário atual ausente; restauração cancelada."
+        return 1
+    fi
+    # Salva o binário anterior para recuperação caso a escrita falhe.
+    cp -p "$BIN" "$salvaguarda" || { echo "ERRO: sem espaço para salvaguarda."; return 1; }
+    if ! printf '%s\n' "$alvo" > "$versao_tmp"; then
+        rm -f "$salvaguarda" "$versao_tmp"
+        return 1
+    fi
+    if ! trocar_binario "$backup"; then
+        rm -f "$salvaguarda" "$versao_tmp"
+        echo "ERRO: falha ao instalar backup; versão anterior preservada."
+        return 1
+    fi
+    if ! mv -f "$versao_tmp" "$SCRIPT_DIR/.version"; then
+        echo "ERRO: falha ao registrar versão; tentando restaurar binário anterior."
+        trocar_binario "$salvaguarda" || echo "CRÍTICO: restaure manualmente $salvaguarda"
+        rm -f "$versao_tmp"
+        return 1
+    fi
+    # Mantém uma cópia recuperável da versão anterior caso a restaurada não inicie.
+    if [ "$CURRENT" != "nenhuma" ] && [ "$CURRENT" != "$alvo" ]; then
+        mv -f "$salvaguarda" "$SCRIPT_DIR/.backups/esdeath-bot.$CURRENT" || true
+    else
+        rm -f "$salvaguarda"
+    fi
     rm -f "$SCRIPT_DIR/.backups/em_teste"
     if [ "$CURRENT" != "$alvo" ] && [ "$CURRENT" != "nenhuma" ] \
         && ! grep -qxF "$CURRENT" "$SCRIPT_DIR/.backups/ruins" 2>/dev/null; then
-        echo "$CURRENT" >> "$SCRIPT_DIR/.backups/ruins"
+        echo "$CURRENT" >> "$SCRIPT_DIR/.backups/ruins" || echo "AVISO: não foi possível marcar versão anterior como ruim."
     fi
+    echo "Binário e .version restaurados para $alvo."
+    echo "Se o bot falhar ao iniciar, execute novamente rollback e selecione $CURRENT."
 }
 
 # Os testes (tests/scripts/atualizacao.sh) carregam só as funções acima.
@@ -240,10 +282,25 @@ fi
 
 PUBLIC_REPO="https://github.com/Salientekill/ESDEATH-RUST.git"
 MODE="${1:-update}"
+# Aceita versão diretamente: v3.55, V3.55 ou 3.55.
+if [[ "$MODE" =~ ^[vV]?([0-9]+\.[0-9]+(\.[0-9]+)?)$ ]]; then
+    DIRECT_TAG="v${BASH_REMATCH[1]}"
+    MODE="update"
+else
+    DIRECT_TAG=""
+fi
 # Tag alvo (ex: v1.138) passada pelo gate de versão do bot. Vazio = main (latest).
 # Clonar a tag garante que um cliente do major 1 baixe o binário v1.x mesmo
 # quando o main já está no v2.x — sem isso ele se brickaria (API rejeita EV2).
-TARGET_TAG="${2:-}"
+TARGET_TAG="${DIRECT_TAG:-${2:-}}"
+if [ -n "$TARGET_TAG" ]; then
+    if [[ "$TARGET_TAG" =~ ^[vV]?([0-9]+\.[0-9]+(\.[0-9]+)?)$ ]]; then
+        TARGET_TAG="v${BASH_REMATCH[1]}"
+    else
+        echo "ERRO: tag inválida: $TARGET_TAG (exemplo: v3.55)." >&2
+        exit 1
+    fi
+fi
 
 CURRENT=$(cat "$SCRIPT_DIR/.version" 2>/dev/null || echo "nenhuma")
 
@@ -318,26 +375,54 @@ if [ "$MODE" = "rollback" ]; then
     done
     echo ""
 
-    read -p "Qual versão restaurar? (ex: v1.25): " TARGET
-    if [ -z "$TARGET" ]; then
-        echo "Cancelado."
-        exit 0
-    fi
-    if [ ! -f "$BACKUP_DIR/esdeath-bot.${TARGET}" ]; then
-        echo "Backup '$TARGET' não encontrado."
-        exit 1
-    fi
+    # Repete a pergunta em caso de versão inexistente, sem derrubar o servidor.
+    while true; do
+        if ! read -r -p "Qual versão restaurar? (ex: v3.54, V3.54 ou 3.54): " TARGET; then
+            echo "Entrada encerrada; rollback cancelado."
+            exit 1
+        fi
+        TARGET="$(printf '%s' "$TARGET" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        [ -n "$TARGET" ] || { echo "Cancelado."; exit 0; }
+        case "$TARGET" in
+            [vV]*) TARGET="v${TARGET:1}" ;;
+            [0-9]*) TARGET="v$TARGET" ;;
+        esac
+        if [ -f "$BACKUP_DIR/esdeath-bot.${TARGET}" ]; then
+            break
+        fi
+        echo "Backup '$TARGET' não encontrado. Nenhuma alteração foi feita."
+        echo "Versões disponíveis:"
+        for f in "$BACKUP_DIR"/esdeath-bot.*; do
+            [ -f "$f" ] || continue
+            echo "  - ${f##*/esdeath-bot.}"
+        done
+    done
 
     echo ""
-    read -p "Confirma rollback de $CURRENT → $TARGET? [s/N]: " CONFIRM
-    if [ "${CONFIRM,,}" != "s" ]; then
+    if ! read -r -p "Confirma rollback de $CURRENT → $TARGET? [s/N]: " CONFIRM; then
+        echo "Entrada encerrada; rollback cancelado."
+        exit 1
+    fi
+    CONFIRM="$(printf '%s' "$CONFIRM" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+    if [ "$CONFIRM" != "s" ]; then
         echo "Cancelado."
         exit 0
     fi
 
     pegar_trava || exit 1
-    stop_bot
+    # No Pterodactyl, .bot.pid pode apontar para o supervisor start.sh.
+    # Nunca encerrar o supervisor durante o rollback: isso derruba o container
+    # antes que a restauração termine. Primeiro troca o binário por rename;
+    # depois encerra apenas o processo do bot para o supervisor relançá-lo.
     voltar_para "$TARGET" || exit 1
+
+    if pgrep -f "$(re_escape "$BIN")" >/dev/null 2>&1 \
+       || pgrep -f "$(re_escape "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot")" >/dev/null 2>&1; then
+        echo "Reiniciando apenas o bot (mantendo o supervisor ativo)..."
+        stop_bot_bin_only
+    else
+        echo "Bot não estava rodando; inicie-o pelo botão Ligar do painel."
+    fi
 
     echo ""
     echo "Rollback para $TARGET concluído!"
@@ -345,7 +430,7 @@ if [ "$MODE" = "rollback" ]; then
         echo "A atualização automática não vai reinstalar a $CURRENT."
         echo "Para voltar a ela: atualizarbot force no privado do bot."
     fi
-    echo "Execute: bash start.sh"
+    echo "Se o servidor estiver desligado, use Ligar no painel (ou bash start.sh fora do painel)."
     exit 0
 fi
 
