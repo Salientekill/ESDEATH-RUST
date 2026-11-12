@@ -14,13 +14,22 @@ BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
 # CANCELA a atualização. Abaixo da 3.31 o binário não conhece --verificar e,
 # pior, trata flag desconhecida subindo o bot — então nem é chamado.
 VERSAO_COM_VERIFICADOR="3.31"
+versao_instalada() {
+    printf '%s' "${CURRENT:-}" | tr -d '[:space:]' | sed 's/^v//' | grep -oE '^[0-9]+\.[0-9]+' || true
+}
 instalada_confere() {
     local v
-    v=$(printf '%s' "${CURRENT:-}" | sed 's/^v//' | grep -oE '^[0-9]+\.[0-9]+' || true)
+    v=$(versao_instalada)
     [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$VERSAO_COM_VERIFICADOR" "$v" | sort -V | head -1)" = "$VERSAO_COM_VERIFICADOR" ]
 }
 conferir_assinatura() {
     local pasta="$1" t=""
+    # `.version` ausente/ilegível não prova que a instalada é antiga: seguir sem
+    # conferir abriria a troca sem assinatura para qualquer instalação mexida.
+    if [ -z "$(versao_instalada)" ]; then
+        echo "ERRO: não deu para ler a versão instalada (${CURRENT:-?}) — atualização cancelada, nada foi trocado. Para reinstalar: apague esdeath/esdeath-bot e rode bash setup.sh."
+        return 1
+    fi
     if ! instalada_confere; then
         echo "AVISO: a versão instalada (${CURRENT:-?}) não confere assinatura; seguindo sem conferir."
         return 0

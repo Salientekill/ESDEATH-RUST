@@ -80,19 +80,36 @@ voltar_versao_se_preciso() {
     echo -e "\e[93m↩️  A versão $para caiu $quedas vezes ao iniciar: voltei para $de.\e[0m"
 }
 
-# Freio geral: 5 saídas em 5 min → 60 s entre tentativas, em vez de $1. Vale
-# para toda volta do laço (saída 0 em laço também é laço). Deixa a espera em
+# Freio geral: a partir de 5 saídas em 3 h, a espera dobra a cada saída (60 s,
+# 2 min, 4 min… até 30 min), em vez de $1. Janela curta não pegava o bot que cai
+# a cada 3 min: virava login no WhatsApp 20 vezes por hora, sem fim. Vale para
+# toda volta do laço (saída 0 em laço também é laço). Deixa a espera em
 # $ESPERA: chamar com `$(...)` rodaria num subshell e a lista nunca cresceria.
 QUEDAS_RECENTES=""
+SAIDAS_LIMPAS=""
 ESPERA=1
+# $2 = "limpa" para saída pedida (0/130: !reiniciar, atualização). Ela não entra
+# no freio longo — reinício pedido não é queda — e só tem o freio curto antigo
+# (5 em 5 min → 60 s), que segura um laço de saída 0.
 espera_depois_da_queda() {
-    local base="${1:-1}" agora t novas="" n=0
+    local base="${1:-1}" agora t novas="" n=0 janela=10800 lista="$QUEDAS_RECENTES"
     agora=$(date +%s)
-    for t in $QUEDAS_RECENTES $agora; do
-        if [ $(( agora - t )) -lt 300 ]; then novas="$novas $t"; n=$(( n + 1 )); fi
+    [ "${2:-}" = "limpa" ] && { janela=300; lista="$SAIDAS_LIMPAS"; }
+    for t in $lista $agora; do
+        if [ $(( agora - t )) -lt "$janela" ]; then novas="$novas $t"; n=$(( n + 1 )); fi
     done
+    if [ "${2:-}" = "limpa" ]; then
+        SAIDAS_LIMPAS="$novas"
+        if [ "$n" -ge 5 ]; then ESPERA=60; else ESPERA="$base"; fi
+        return 0
+    fi
     QUEDAS_RECENTES="$novas"
-    if [ "$n" -ge 5 ]; then ESPERA=60; else ESPERA="$base"; fi
+    if [ "$n" -ge 5 ]; then
+        ESPERA=$(( 60 << (n - 5 > 5 ? 5 : n - 5) ))
+        [ "$ESPERA" -gt 1800 ] && ESPERA=1800
+    else
+        ESPERA="$base"
+    fi
 }
 
 # Os testes (tests/scripts/atualizacao.sh) carregam só as funções acima.
@@ -345,8 +362,9 @@ case "${1:-}" in
         export RUST_LOG=whatsapp_rust_tokio_transport=trace
         ;;
     reset)
-        rm -f "$DB" "$DB-shm" "$DB-wal"
-        echo "Sessao removida. Reconectando..."
+        # Só apaga depois de derrubar a instância anterior (abaixo): apagar com o
+        # bot de pé deixa ele vivo e mudo, gravando num banco vazio.
+        RESET_SESSAO=1
         ;;
     ram)
         # ./start.sh ram [dhat|jemalloc]
@@ -460,6 +478,11 @@ for BIN_PATTERN in "$DEV_BIN" "$PUB_BIN" "$PROF_BIN"; do
         pkill -9 -f "$BIN_PATTERN" 2>/dev/null || true
     fi
 done
+
+if [ "${RESET_SESSAO:-}" = 1 ]; then
+    rm -f "$DB" "$DB-shm" "$DB-wal"
+    echo "Sessao removida. Reconectando..."
+fi
 
 # Garante que ^C/^Z estão mapeados pros sinais corretos
 # (alguns terminais/containers desbindam intr, deixando Ctrl+C sem efeito)
@@ -609,7 +632,7 @@ while [ "$SHOULD_EXIT" = "0" ]; do
         # cenário em que a trap do supervisor não disparou (Ctrl+C foi
         # consumido só pelo bot) mas queremos reiniciar imediatamente.
         voltar_versao_se_preciso "$LANCADA"
-        espera_depois_da_queda 0.3
+        espera_depois_da_queda 0.3 limpa
         echo -e "\e[93m♻️  Bot encerrou (code=$EXIT_CODE). Reiniciando...\e[0m"
         dormir "$ESPERA"
     else
