@@ -3,7 +3,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
-BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
+# Um binário por arquitetura, os dois em esdeath/ (o start.sh escolhe a cada
+# partida, e a pasta pode mudar de servidor). Instala os dois; o desta máquina
+# é o que confere a assinatura e é guardado para voltar de versão.
+case "$(uname -m)" in
+    aarch64 | arm64) NOME_BIN="esdeath-bot-aarch64"; ALVO_DEV="aarch64-unknown-linux-musl" ;;
+    *) NOME_BIN="esdeath-bot"; ALVO_DEV="x86_64-unknown-linux-musl" ;;
+esac
+OUTRO_BIN="esdeath-bot"
+[ "$NOME_BIN" = "esdeath-bot" ] && OUTRO_BIN="esdeath-bot-aarch64"
+BIN="$SCRIPT_DIR/esdeath/$NOME_BIN"
+DEV_BIN="$SCRIPT_DIR/target/$ALVO_DEV/release/esdeath-bot"
 
 # Manifesto assinado da release (esdeath/manifesto + .sig): versão e sha256 de
 # TUDO o que veio no clone. Quem confere é o binário que está rodando AGORA: a
@@ -27,7 +37,7 @@ conferir_assinatura() {
     # `.version` ausente/ilegível não prova que a instalada é antiga: seguir sem
     # conferir abriria a troca sem assinatura para qualquer instalação mexida.
     if [ -z "$(versao_instalada)" ]; then
-        echo "ERRO: não deu para ler a versão instalada (${CURRENT:-?}) — atualização cancelada, nada foi trocado. Para reinstalar: apague esdeath/esdeath-bot e rode bash setup.sh."
+        echo "ERRO: não deu para ler a versão instalada (${CURRENT:-?}) — atualização cancelada, nada foi trocado. Para reinstalar: apague esdeath/$NOME_BIN e rode bash setup.sh."
         return 1
     fi
     if ! instalada_confere; then
@@ -50,7 +60,7 @@ marcar_em_teste() {
     # Recado de rollback de outra troca: o binário que o consumiria pode nem existir mais.
     rm -f "$SCRIPT_DIR/.backups/em_teste" "$SCRIPT_DIR/.backups/rollback_feito"
     [ "$CURRENT" != "$NEW" ] || return 0
-    [ -f "$SCRIPT_DIR/.backups/esdeath-bot.$CURRENT" ] || return 0
+    [ -f "$SCRIPT_DIR/.backups/$NOME_BIN.$CURRENT" ] || return 0
     printf 'de=%s\npara=%s\nquedas=0\n' "$CURRENT" "$NEW" > "$SCRIPT_DIR/.backups/em_teste"
 }
 
@@ -63,10 +73,11 @@ instalar_script() {
 }
 
 # Troca por rename: `cp` por cima do binário em uso dá "Text file busy" em
-# alguns ambientes (containers).
+# alguns ambientes (containers). $2 = destino (padrão: o desta máquina).
 trocar_binario() {
-    cp "$1" "$BIN.new.$$" && chmod +x "$BIN.new.$$" && mv -f "$BIN.new.$$" "$BIN" && return 0
-    rm -f "$BIN.new.$$"
+    local destino="${2:-$BIN}"
+    cp "$1" "$destino.new.$$" && chmod +x "$destino.new.$$" && mv -f "$destino.new.$$" "$destino" && return 0
+    rm -f "$destino.new.$$"
     return 1
 }
 
@@ -191,9 +202,9 @@ instalar_versao() {
         mkdir -p "$SCRIPT_DIR/.backups"
         # Explícito: chamada como `instalar_versao || exit`, a função roda sem
         # `set -e`, e trocar sem backup tiraria o caminho de volta.
-        cp "$BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${CURRENT}" \
+        cp "$BIN" "$SCRIPT_DIR/.backups/$NOME_BIN.${CURRENT}" \
             || { echo "ERRO: não consegui guardar o binário atual (disco cheio?)."; return 1; }
-        ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +2 | xargs rm -f 2>/dev/null || true
+        ls -t "$SCRIPT_DIR/.backups"/"$NOME_BIN".* 2>/dev/null | tail -n +2 | xargs rm -f 2>/dev/null || true
     fi
     criar_temporario || { echo "ERRO: não consegui criar a pasta temporária em $SCRIPT_DIR."; return 1; }
     echo "Baixando atualizacao${TARGET_TAG:+ (tag $TARGET_TAG)}..."
@@ -201,8 +212,8 @@ instalar_versao() {
     [ -n "$TARGET_TAG" ] && ramo=(--branch "$TARGET_TAG")
     git clone --depth 1 ${ramo[@]+"${ramo[@]}"} "$PUBLIC_REPO" "$TMPDIR/pub" --quiet \
         || { echo "ERRO: falha ao baixar${TARGET_TAG:+ a tag $TARGET_TAG} (git instalado e rede ok?)."; return 1; }
-    if [ ! -f "$TMPDIR/pub/esdeath/esdeath-bot" ]; then
-        echo "ERRO: binario nao encontrado no repositorio."
+    if [ ! -f "$TMPDIR/pub/esdeath/$NOME_BIN" ]; then
+        echo "ERRO: a versão baixada não tem o bot para esta máquina ($(uname -m)); nada foi trocado."
         return 1
     fi
     # Não instalar binário cuja versão não corresponde à tag solicitada.
@@ -219,8 +230,13 @@ instalar_versao() {
         fi
     fi
     conferir_assinatura "$TMPDIR/pub" || return 1
-    trocar_binario "$TMPDIR/pub/esdeath/esdeath-bot" \
+    trocar_binario "$TMPDIR/pub/esdeath/$NOME_BIN" \
         || { echo "ERRO: não consegui trocar o binário (disco cheio?)."; return 1; }
+    # O da outra arquitetura não roda aqui; vai junto para a pasta poder mudar de servidor.
+    if [ -f "$TMPDIR/pub/esdeath/$OUTRO_BIN" ]; then
+        trocar_binario "$TMPDIR/pub/esdeath/$OUTRO_BIN" "$SCRIPT_DIR/esdeath/$OUTRO_BIN" \
+            || echo "   ! não copiei o $OUTRO_BIN (o bot desta máquina já foi trocado)"
+    fi
 
     # Scripts e template (best-effort)
     instalar_script "$TMPDIR/pub/start.sh" "$SCRIPT_DIR/start.sh" || true
@@ -241,7 +257,7 @@ instalar_versao() {
 # A versão abandonada vira "ruim": sem isso a atualização automática a
 # reinstalava na hora seguinte (o rollback automático do start.sh já marcava).
 voltar_para() {
-    local alvo="$1" backup="$SCRIPT_DIR/.backups/esdeath-bot.$1"
+    local alvo="$1" backup="$SCRIPT_DIR/.backups/$NOME_BIN.$1"
     local salvaguarda="$SCRIPT_DIR/.backups/.rollback-anterior.$$"
     local versao_tmp="$SCRIPT_DIR/.version.rollback.$$"
     if [ ! -s "$backup" ]; then
@@ -271,7 +287,7 @@ voltar_para() {
     fi
     # Mantém uma cópia recuperável da versão anterior caso a restaurada não inicie.
     if [ "$CURRENT" != "nenhuma" ] && [ "$CURRENT" != "$alvo" ]; then
-        mv -f "$salvaguarda" "$SCRIPT_DIR/.backups/esdeath-bot.$CURRENT" || true
+        mv -f "$salvaguarda" "$SCRIPT_DIR/.backups/$NOME_BIN.$CURRENT" || true
     else
         rm -f "$salvaguarda"
     fi
@@ -335,7 +351,7 @@ stop_bot() {
 re_escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
 
 stop_bot_bin_only() {
-    for BIN_PATTERN in "$BIN" "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot"; do
+    for BIN_PATTERN in "$BIN" "$DEV_BIN"; do
         BIN_PATTERN=$(re_escape "$BIN_PATTERN")
         if pgrep -f "$BIN_PATTERN" >/dev/null 2>&1; then
             echo "Matando binário do bot ($BIN_PATTERN)..."
@@ -379,8 +395,8 @@ if [ "$MODE" = "rollback" ]; then
     fi
 
     echo "Backups disponíveis:"
-    ls -t "$BACKUP_DIR"/esdeath-bot.* 2>/dev/null | while read -r f; do
-        echo "  - $(basename "$f" | sed 's/esdeath-bot\.//')"
+    ls -t "$BACKUP_DIR"/"$NOME_BIN".* 2>/dev/null | while read -r f; do
+        echo "  - ${f##*/"$NOME_BIN".}"
     done
     echo ""
 
@@ -396,14 +412,14 @@ if [ "$MODE" = "rollback" ]; then
             [vV]*) TARGET="v${TARGET:1}" ;;
             [0-9]*) TARGET="v$TARGET" ;;
         esac
-        if [ -f "$BACKUP_DIR/esdeath-bot.${TARGET}" ]; then
+        if [ -f "$BACKUP_DIR/$NOME_BIN.${TARGET}" ]; then
             break
         fi
         echo "Backup '$TARGET' não encontrado. Nenhuma alteração foi feita."
         echo "Versões disponíveis:"
-        for f in "$BACKUP_DIR"/esdeath-bot.*; do
+        for f in "$BACKUP_DIR"/"$NOME_BIN".*; do
             [ -f "$f" ] || continue
-            echo "  - ${f##*/esdeath-bot.}"
+            echo "  - ${f##*/"$NOME_BIN".}"
         done
     done
 
@@ -426,7 +442,7 @@ if [ "$MODE" = "rollback" ]; then
     voltar_para "$TARGET" || exit 1
 
     if pgrep -f "$(re_escape "$BIN")" >/dev/null 2>&1 \
-       || pgrep -f "$(re_escape "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot")" >/dev/null 2>&1; then
+       || pgrep -f "$(re_escape "$DEV_BIN")" >/dev/null 2>&1; then
         echo "Reiniciando apenas o bot (mantendo o supervisor ativo)..."
         stop_bot_bin_only
     else
@@ -461,7 +477,7 @@ echo ""
 
 # Reinicia: mata só o binário (preserva start.sh para relançar).
 if pgrep -f "$(re_escape "$BIN")" >/dev/null 2>&1 \
-   || pgrep -f "$(re_escape "$SCRIPT_DIR/target/x86_64-unknown-linux-musl/release/esdeath-bot")" >/dev/null 2>&1; then
+   || pgrep -f "$(re_escape "$DEV_BIN")" >/dev/null 2>&1; then
     echo "Reiniciando bot (supervisor relança)..."
     stop_bot_bin_only
 else

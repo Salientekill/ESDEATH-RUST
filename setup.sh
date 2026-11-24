@@ -31,12 +31,16 @@ if ! command -v python3 >/dev/null 2>&1; then
     MISSING_OPTIONAL+=("python3 (config JSON — fallback sed disponível)")
 fi
 
-# Arquitetura (binário é x86_64 MUSL estático)
-ARCH=$(uname -m)
-if [ "$ARCH" != "x86_64" ]; then
-    echo "      ⚠️  Arquitetura detectada: $ARCH"
-    echo "         O binário é compilado para x86_64 — pode não executar."
-fi
+# Um binário por arquitetura, os dois em esdeath/: o start.sh escolhe o desta
+# máquina a cada partida, e a pasta pode mudar de servidor.
+case "$(uname -m)" in
+    x86_64 | amd64) BIN_MAQUINA="esdeath-bot" ;;
+    aarch64 | arm64) BIN_MAQUINA="esdeath-bot-aarch64" ;;
+    *)
+        echo "      ❌ Arquitetura $(uname -m) não suportada (o bot roda em x86_64 e ARM64)."
+        exit 1
+        ;;
+esac
 
 if [ ${#MISSING_REQUIRED[@]} -gt 0 ]; then
     echo "      ❌ Dependências OBRIGATÓRIAS faltando:"
@@ -67,7 +71,7 @@ echo "      OK."
 echo ""
 
 # ── 1. Baixa arquivos do repo público se faltarem ──────────────────────────
-if [ ! -f "$SCRIPT_DIR/esdeath/esdeath-bot" ]; then
+if [ ! -f "$SCRIPT_DIR/esdeath/$BIN_MAQUINA" ]; then
     echo "[1/5] Baixando arquivos do repo público..."
     TMPDIR=$(mktemp -d)
     # shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está
@@ -77,9 +81,16 @@ if [ ! -f "$SCRIPT_DIR/esdeath/esdeath-bot" ]; then
     git clone --depth 1 "$PUBLIC_REPO" "$TMPDIR/pub" --quiet
     # Copia binário e scripts
     mkdir -p "$SCRIPT_DIR/esdeath"
-    cp "$TMPDIR/pub/esdeath/esdeath-bot" "$SCRIPT_DIR/esdeath/esdeath-bot"
+    if [ ! -f "$TMPDIR/pub/esdeath/$BIN_MAQUINA" ]; then
+        echo "      ❌ A versão publicada ainda não tem o bot para $(uname -m)."
+        exit 1
+    fi
+    for b in esdeath-bot esdeath-bot-aarch64; do
+        [ -f "$TMPDIR/pub/esdeath/$b" ] || continue
+        cp "$TMPDIR/pub/esdeath/$b" "$SCRIPT_DIR/esdeath/$b"
+        chmod +x "$SCRIPT_DIR/esdeath/$b"
+    done
     cp "$TMPDIR/pub/esdeath/bot_config.json.template" "$SCRIPT_DIR/esdeath/bot_config.json.template"
-    chmod +x "$SCRIPT_DIR/esdeath/esdeath-bot"
     # Sem o `.version`, a 1ª atualização não tem com o que conferir a assinatura.
     [ -f "$TMPDIR/pub/.version" ] && cp "$TMPDIR/pub/.version" "$SCRIPT_DIR/.version"
     # Copia scripts da raiz se não existirem

@@ -234,14 +234,14 @@ git clone https://github.com/Salientekill/ESDEATH-RUST.git
   o arquivo é enviado pelo gerenciador de arquivos.
 - **PC com Linux**, ou **Windows com WSL**.
 
-> ⚠️ **Não roda no Termux (celular).** O programa é feito para computadores
-> **x86_64** (64 bits). Não tem onde hospedar? [Fale comigo](#-suporte-e-comunidade).
+> ⚠️ **Não roda no Termux (celular).** O programa é feito para computadores e
+> servidores **x86_64** ou **ARM64** (64 bits). Não tem onde hospedar? [Fale comigo](#-suporte-e-comunidade).
 
 ### 🧰 Requisitos
 
 | O quê | Para quê |
 |---|---|
-| **Linux x86_64** | Sistema onde o bot roda |
+| **Linux x86_64 ou ARM64** | Sistema onde o bot roda (o bot escolhe sozinho; dá para levar a pasta de um para o outro) |
 | **git** e **curl** | Obrigatórios: baixar e atualizar o bot |
 | **ffmpeg** | Recomendado: figurinhas, conversor, áudio e downloads |
 | **python3** | Opcional: deixa a configuração inicial mais segura |

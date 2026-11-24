@@ -4,17 +4,27 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Os caminhos do bot (dados/, credenciais.json, apikey.enc) são relativos.
 cd "$SCRIPT_DIR" || exit 1
-MUSL_TARGET="x86_64-unknown-linux-musl"
 PID_FILE="$SCRIPT_DIR/.bot.pid"
-# Nome do executável, igual nos dois lados: é como o asset sai da release
-# pública e como o binário se chama aqui.
-BIN_NAME_PUB="esdeath-bot"
+# Um binário por arquitetura, os dois na pasta `esdeath/`, e a escolha é feita
+# aqui a cada partida: quem leva a pasta de um x86 para um ARM (ou o contrário)
+# segue funcionando. O nome é igual nos dois lados: é como o asset sai da
+# release pública e como o binário se chama aqui.
+case "$(uname -m)" in
+    aarch64 | arm64)
+        MUSL_TARGET="aarch64-unknown-linux-musl"
+        BIN_NAME_PUB="esdeath-bot-aarch64"
+        ;;
+    *)
+        MUSL_TARGET="x86_64-unknown-linux-musl"
+        BIN_NAME_PUB="esdeath-bot"
+        ;;
+esac
 DB="${BOT_DB_PATH:-"$SCRIPT_DIR/dados/DB/ESDEATH_AUTH.db"}"
 
 # ── Detecta binário: comp2 (debug nativo) > comp (musl release) > pub ──────
 DEV_BIN="$SCRIPT_DIR/target/$MUSL_TARGET/release/esdeath-bot"
 DBG_BIN="$SCRIPT_DIR/target/debug/esdeath-bot"
-PUB_BIN="$SCRIPT_DIR/esdeath/esdeath-bot"
+PUB_BIN="$SCRIPT_DIR/esdeath/$BIN_NAME_PUB"
 # Binario de profiling do dhat (build via `bash start.sh dhat`) — rodado por
 # `./start.sh ram`. Nunca entra na deteccao automatica de BOT_BIN acima.
 PROF_BIN="$SCRIPT_DIR/target/$MUSL_TARGET/profiling/esdeath-bot"
@@ -63,7 +73,7 @@ voltar_versao_se_preciso() {
         printf 'de=%s\npara=%s\nquedas=%s\n' "$de" "$para" "$quedas" > "$EM_TESTE"
         return 0
     fi
-    antigo="$BACKUPS/esdeath-bot.$de"
+    antigo="$BACKUPS/$BIN_NAME_PUB.$de"
     rm -f "$EM_TESTE"
     if [ "$BOT_BIN" != "$PUB_BIN" ] || [ ! -f "$antigo" ]; then
         echo -e "\e[91m⚠️  A versão $para caiu $quedas vezes ao iniciar e não há binário anterior para voltar.\e[0m"
@@ -139,27 +149,37 @@ ensure_zig() {
         return 1
     fi
 }
+# $1 = alvo (padrão: o desta máquina).
 musl_build() {
+    local alvo="${1:-$MUSL_TARGET}" pagina=()
     ensure_zig || return 1
+    # Compilado em outra máquina, o jemalloc fixa a página de 4 KB, e servidor
+    # ARM com página de 64 KB derruba o bot ao ligar. 64 KB (2^16) serve aos dois.
+    case "$alvo" in aarch64-*) pagina=(JEMALLOC_SYS_WITH_LG_PAGE=16) ;; esac
     # Protege os bots em produção (mesmo servidor, 4 cores): `nice -n 19` cede CPU
     # pros bots; `-j 2` + CMAKE limitado usam no máx ~2 cores, deixando 2 livres —
     # evita saturar a CPU e causar latência/desconexão dos bots durante o build.
-    local feats=""
-    [ "${1:-}" = "jemalloc" ] && feats="--features jemalloc"
+    # O jemalloc é padrão no Cargo.toml: `comp jemalloc` ainda é aceito, mas
+    # não muda nada.
     # `nice` cede CPU, mas NÃO cede prioridade de I/O — e o gargalo medido em
     # 21/08 foi disco, não CPU: o rustc empurrou o page cache do SQLite pra fora
     # e um `db.run` levou 56s. `ionice -c3` (classe idle) faz o build só usar
     # disco quando ninguém mais quer.
-    CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 ionice -c3 \
-        cargo zigbuild --release --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
-        $feats --manifest-path "$SCRIPT_DIR/Cargo.toml"
+    env ${pagina[@]+"${pagina[@]}"} CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 ionice -c3 \
+        cargo zigbuild --release --target "$alvo" -j "${BUILD_JOBS:-2}" \
+        --manifest-path "$SCRIPT_DIR/Cargo.toml"
 }
 
 case "${1:-}" in
     comp)
-        # comp [jemalloc] -> alocador de producao jemalloc (RSS desce via decay).
-        # Sem arg = CountingAlloc (memmon com heap-vivo real).
-        musl_build "${2:-}"
+        # comp       -> build de producao com jemalloc (RSS desce via decay).
+        # comp arm   -> o mesmo para servidor ARM (target/aarch64-unknown-linux-musl).
+        # comp x86   -> o mesmo para x86, compilando de um ARM.
+        case "${2:-}" in
+            arm) musl_build aarch64-unknown-linux-musl ;;
+            x86) musl_build x86_64-unknown-linux-musl ;;
+            *) musl_build ;;
+        esac
         BUILD_STATUS=$?
         # Não remove target/release ou target/debug — esses são caches de
         # `cargo check` e `comp2`, úteis pra dev rápido. Para limpar mesmo,
@@ -195,7 +215,7 @@ case "${1:-}" in
         ensure_zig || exit 1
         RUSTFLAGS="${RUSTFLAGS:-} -Cforce-frame-pointers=yes -Cforce-unwind-tables=yes" \
         CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 \
-            cargo zigbuild --profile profiling --features dhat-heap \
+            cargo zigbuild --profile profiling --no-default-features --features dhat-heap \
             --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
             --manifest-path "$SCRIPT_DIR/Cargo.toml"
         BUILD_STATUS=$?
@@ -274,9 +294,9 @@ case "${1:-}" in
             # timestamp o rollback anunciaria "revertido para 20260829-130041".
             ANTES_V=$(echo "$ANTES" | awk '{print $NF}')
             [ -n "$ANTES_V" ] || ANTES_V="desconhecida"
-            cp "$DEV_BIN" "$SCRIPT_DIR/.backups/esdeath-bot.${ANTES_V}" 2>/dev/null || true
+            cp "$DEV_BIN" "$SCRIPT_DIR/.backups/$BIN_NAME_PUB.${ANTES_V}" 2>/dev/null || true
             # Retém só a versão anterior (~24 MB): o container do cliente é pequeno.
-            ls -t "$SCRIPT_DIR/.backups"/esdeath-bot.* 2>/dev/null | tail -n +2 \
+            ls -t "$SCRIPT_DIR/.backups"/"$BIN_NAME_PUB".* 2>/dev/null | tail -n +2 \
                 | xargs rm -f 2>/dev/null || true
             echo "  substituindo: $ANTES"
         fi
@@ -302,7 +322,7 @@ case "${1:-}" in
         ;;
     rollback)
         BACKUP_DIR="$SCRIPT_DIR/.backups"
-        BACKUP=$(ls -t "$BACKUP_DIR"/esdeath-bot.* 2>/dev/null | head -1)
+        BACKUP=$(ls -t "$BACKUP_DIR"/"$BIN_NAME_PUB".* 2>/dev/null | head -1)
         if [ -z "$BACKUP" ]; then
             echo "Nenhum backup encontrado."
             exit 1
@@ -321,7 +341,8 @@ case "${1:-}" in
             exit 1
         fi
         chmod +x "$ALVO"
-        VERSION=$(basename "$BACKUP" | sed 's/esdeath-bot\.//')
+        VERSION=$(basename "$BACKUP")
+        VERSION="${VERSION#"$BIN_NAME_PUB".}"
         echo "$VERSION" > "$SCRIPT_DIR/.version"
         echo "Revertido para $VERSION ($ALVO)"
         # Sem isto o arquivo volta e o processo continua no que já estava
@@ -356,11 +377,13 @@ case "${1:-}" in
             "") ;;
             dhat | jemalloc)
                 FEAT="jemalloc-prof"
-                [ "$2" = "dhat" ] && FEAT="dhat-heap"
+                # O dhat só é o alocador sem o jemalloc, que é padrão.
+                SEM_PADRAO=()
+                [ "$2" = "dhat" ] && FEAT="dhat-heap" && SEM_PADRAO=(--no-default-features)
                 ensure_zig || exit 1
                 echo "Buildando profiling ($2, feature $FEAT)..."
                 CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS:-2}" nice -n 19 \
-                    cargo zigbuild --profile profiling --features "$FEAT" \
+                    cargo zigbuild --profile profiling ${SEM_PADRAO[@]+"${SEM_PADRAO[@]}"} --features "$FEAT" \
                     --target "$MUSL_TARGET" -j "${BUILD_JOBS:-2}" \
                     --manifest-path "$SCRIPT_DIR/Cargo.toml" || exit 1
                 ;;
@@ -384,6 +407,7 @@ case "${1:-}" in
     *)
         echo "Comando desconhecido: $1"
         echo "Uso: bash start.sh [comp|comp2|recomp|sync|dhat|ram|clean|update|rollback|debug|debug2|reset]"
+        echo "     comp [arm|x86] = compila (sem arg: para esta máquina)"
         echo "     sync [tag] = baixa a release publicada e reinicia o bot nela"
         echo "     ram [dhat|jemalloc] = builda o profiler e roda (default jemalloc)"
         exit 1
@@ -392,7 +416,11 @@ esac
 
 # Verifica se o binário existe
 if [ -z "$BOT_BIN" ]; then
-    if [ -f "$SCRIPT_DIR/Cargo.toml" ]; then
+    if [ -f "$SCRIPT_DIR/esdeath/esdeath-bot" ] && [ "$BIN_NAME_PUB" != "esdeath-bot" ]; then
+        # Pasta trazida de um x86 com uma versão anterior aos dois binários.
+        echo "Esta máquina é ARM ($(uname -m)) e a versão instalada só tem o bot para x86."
+        echo "Atualize para uma versão com suporte a ARM: bash setup.sh"
+    elif [ -f "$SCRIPT_DIR/Cargo.toml" ]; then
         echo "Binario nao encontrado. Compile com: bash start.sh comp"
     else
         echo "Binario nao encontrado. Execute: bash setup.sh"
