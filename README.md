@@ -224,7 +224,7 @@ diárias** e **ranking**. Há proteção contra inflação e contra quem tenta f
 </div>
 
 ```bash
-git clone https://github.com/Salientekill/ESDEATH-RUST.git
+git clone --depth 1 https://github.com/Salientekill/ESDEATH-RUST.git
 ```
 
 ### 🖥️ Onde roda
@@ -258,7 +258,7 @@ sudo apt update && sudo apt install -y git curl ffmpeg python3
 #### 1. Baixe e rode o instalador
 
 ```bash
-git clone https://github.com/Salientekill/ESDEATH-RUST.git
+git clone --depth 1 https://github.com/Salientekill/ESDEATH-RUST.git
 cd ESDEATH-RUST
 bash setup.sh
 ```
@@ -287,6 +287,21 @@ guardada, e você não precisa digitá-la de novo nessa máquina.
 Pronto. Mande `!menu` em um grupo.
 
 </details>
+
+### 🖱️ Em hospedagem com painel (Pterodactyl e parecidos)
+
+Não precisa enviar arquivo nem clonar nada. No painel, em **Comando de
+Inicialização**, cole esta linha e ligue o servidor:
+
+```bash
+[ -f start.sh ] || { curl -fsSLO https://raw.githubusercontent.com/Salientekill/ESDEATH-RUST/main/setup.sh && bash setup.sh; }; bash start.sh
+```
+
+- **Primeira vez:** baixa só a versão mais nova (uns 30 MB) e faz as perguntas
+  do instalador no console. Responda por ali e, em seguida, cole a chave de acesso.
+- **Depois:** só liga o bot. Para atualizar, use `!atualizarbot` no privado do bot.
+- Não use `bash atualizar.sh` como comando de inicialização: ele atualiza e
+  termina, e o servidor desliga.
 
 ## 🔧 Comandos do terminal
 

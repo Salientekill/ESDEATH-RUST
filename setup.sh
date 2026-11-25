@@ -136,12 +136,14 @@ else
     BOT_PREFIX="${BOT_PREFIX:-!}"
 
     read -p "  Número do dono (ex: 5511999999999): " BOT_OWNER
+    # Confere depois de limpar: "+55 (11)..." vira só dígitos, e algo sem
+    # dígito nenhum passava como dono vazio.
+    BOT_OWNER=$(printf '%s' "$BOT_OWNER" | tr -cd '0-9')
     while [ -z "$BOT_OWNER" ]; do
-        echo "  Número do dono é obrigatório."
+        echo "  Número do dono é obrigatório (só os números, com DDI e DDD)."
         read -p "  Número do dono: " BOT_OWNER
+        BOT_OWNER=$(printf '%s' "$BOT_OWNER" | tr -cd '0-9')
     done
-    # Limpa caracteres não-numéricos
-    BOT_OWNER=$(echo "$BOT_OWNER" | tr -cd '0-9')
 
     read -p "  Emoji do tema [❄️]: " BOT_EMOJI
     BOT_EMOJI="${BOT_EMOJI:-❄️}"
