@@ -73,7 +73,9 @@ echo ""
 # ── 1. Baixa arquivos do repo público se faltarem ──────────────────────────
 if [ ! -f "$SCRIPT_DIR/esdeath/$BIN_MAQUINA" ]; then
     echo "[1/5] Baixando arquivos do repo público..."
-    TMPDIR=$(mktemp -d)
+    # Na pasta do bot, não no /tmp: em painel o /tmp do container é pequeno e
+    # o clone (~100 MB) estoura, como no atualizar.sh.
+    TMPDIR=$(mktemp -d "$SCRIPT_DIR/.setup.XXXXXX")
     # shellcheck disable=SC2064  # expandir AGORA é o certo: o `mktemp -d` está
     # na linha acima, e adiar deixaria o trap com `rm -rf` vazio se a variável
     # sumisse no caminho.

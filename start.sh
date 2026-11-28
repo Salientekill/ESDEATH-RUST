@@ -14,9 +14,15 @@ case "$(uname -m)" in
         MUSL_TARGET="aarch64-unknown-linux-musl"
         BIN_NAME_PUB="esdeath-bot-aarch64"
         ;;
-    *)
+    x86_64 | amd64)
         MUSL_TARGET="x86_64-unknown-linux-musl"
         BIN_NAME_PUB="esdeath-bot"
+        ;;
+    *)
+        # armv7l/armv8l (sistema 32 bits) caía no x86 e reiniciava sem fim
+        # com "Exec format error".
+        echo "❌ Arquitetura $(uname -m) não suportada (o bot roda em x86_64 e ARM64 de 64 bits)."
+        exit 1
         ;;
 esac
 DB="${BOT_DB_PATH:-"$SCRIPT_DIR/dados/DB/ESDEATH_AUTH.db"}"
@@ -343,7 +349,15 @@ case "${1:-}" in
         chmod +x "$ALVO"
         VERSION=$(basename "$BACKUP")
         VERSION="${VERSION#"$BIN_NAME_PUB".}"
+        ABANDONADA=$(cat "$SCRIPT_DIR/.version" 2>/dev/null)
         echo "$VERSION" > "$SCRIPT_DIR/.version"
+        # Mesmo registro do `atualizar.sh rollback`: sem a versão desfeita em
+        # `ruins`, a atualização automática a reinstalava na hora seguinte.
+        rm -f "$BACKUP_DIR/em_teste"
+        if [ -n "$ABANDONADA" ] && [ "$ABANDONADA" != "$VERSION" ] \
+            && ! grep -qxF "$ABANDONADA" "$BACKUP_DIR/ruins" 2>/dev/null; then
+            echo "$ABANDONADA" >> "$BACKUP_DIR/ruins" || echo "AVISO: não deu pra marcar $ABANDONADA como ruim."
+        fi
         echo "Revertido para $VERSION ($ALVO)"
         # Sem isto o arquivo volta e o processo continua no que já estava
         # carregado — reverter sem reiniciar não reverte nada.

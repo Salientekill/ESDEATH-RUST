@@ -290,14 +290,15 @@ Pronto. Mande `!menu` em um grupo.
 
 ### 🖱️ Em hospedagem com painel (Pterodactyl e parecidos)
 
-Não precisa enviar arquivo nem clonar nada. No painel, em **Comando de
-Inicialização**, cole esta linha e ligue o servidor:
+Não precisa enviar arquivo nem clonar nada: basta a imagem do servidor ter
+`git` e `curl` (e `ffmpeg`, para figurinhas e downloads). No painel, em
+**Comando de Inicialização**, cole esta linha e ligue o servidor:
 
 ```bash
-[ -f start.sh ] || { curl -fsSLO https://raw.githubusercontent.com/Salientekill/ESDEATH-RUST/main/setup.sh && bash setup.sh; }; bash start.sh
+[ -f dados/bot_config.json ] || { curl -fsSLO https://raw.githubusercontent.com/Salientekill/ESDEATH-RUST/main/setup.sh && bash setup.sh; }; bash start.sh
 ```
 
-- **Primeira vez:** baixa só a versão mais nova (uns 30 MB) e faz as perguntas
+- **Primeira vez:** baixa só a versão mais nova (pouco mais de 100 MB) e faz as perguntas
   do instalador no console. Responda por ali e, em seguida, cole a chave de acesso.
 - **Depois:** só liga o bot. Para atualizar, use `!atualizarbot` no privado do bot.
 - Não use `bash atualizar.sh` como comando de inicialização: ele atualiza e
